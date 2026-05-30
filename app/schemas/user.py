@@ -26,11 +26,17 @@ class UserResponse(UserBase):
 
     Attributes:
         id: ID unik pengguna (sub dari Authentik).
+        email: Alamat email pengguna (dioverride ke str untuk mendukung TLD
+            yang direservasi seperti .test di lingkungan pengujian).
         role: Role pengguna (admin/expert).
         is_active: Status aktif pengguna.
         created_at: Waktu pembuatan akun.
         updated_at: Waktu terakhir diperbarui.
     """
+
+    # Override EmailStr → str agar validasi format tidak dilakukan pada response.
+    # EmailStr pada UserBase tetap memvalidasi input saat create/update.
+    email: str
 
     model_config = ConfigDict(
         from_attributes=True,

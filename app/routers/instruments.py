@@ -96,6 +96,11 @@ async def create_instrument(
         resource_type="instrument",
         resource_id=instrument.id,
     )
+    # Commit sebelum mengembalikan response agar instrumen sudah tersimpan di DB
+    # saat klien langsung mengirim request lanjutan (misalnya bulk create items).
+    # FastAPI menjalankan cleanup yield dependency SETELAH response dikirim,
+    # sehingga tanpa commit eksplisit di sini, ada race condition.
+    await db.commit()
     return InstrumentResponse.model_validate(instrument)
 
 
