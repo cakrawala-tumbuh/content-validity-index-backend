@@ -45,9 +45,7 @@ class ExpertAssignmentRepository:
             Daftar ExpertAssignment untuk instrumen tersebut.
         """
         result = await self.db.execute(
-            select(ExpertAssignment).where(
-                ExpertAssignment.instrument_id == instrument_id
-            )
+            select(ExpertAssignment).where(ExpertAssignment.instrument_id == instrument_id)
         )
         return list(result.scalars().all())
 

@@ -30,9 +30,7 @@ class RatingService:
         self.assignment_repo = ExpertAssignmentRepository(db)
         self.item_repo = ItemRepository(db)
 
-    async def _validate_assignment_ownership(
-        self, assignment_id: str, user_id: str
-    ) -> None:
+    async def _validate_assignment_ownership(self, assignment_id: str, user_id: str) -> None:
         """Memvalidasi bahwa assignment dimiliki oleh user yang sedang login.
 
         Args:
@@ -54,9 +52,7 @@ class RatingService:
                 detail="Anda tidak memiliki akses ke assignment ini.",
             )
 
-    async def get_by_assignment(
-        self, assignment_id: str, user_id: str, role: str
-    ) -> list[Rating]:
+    async def get_by_assignment(self, assignment_id: str, user_id: str, role: str) -> list[Rating]:
         """Mengambil semua rating untuk sebuah assignment.
 
         Expert hanya bisa melihat rating miliknya sendiri.

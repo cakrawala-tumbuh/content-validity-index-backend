@@ -26,7 +26,9 @@ class UserService:
         self.db = db
         self.repo = UserRepository(db)
 
-    async def sync_from_claims(self, claims: dict[str, Any], admin_group: str, expert_group: str) -> User:
+    async def sync_from_claims(
+        self, claims: dict[str, Any], admin_group: str, expert_group: str
+    ) -> User:
         """Sinkronisasi user ke database lokal dari JWT claims Authentik.
 
         Jika user sudah ada, data diperbarui. Jika belum ada, user baru dibuat.

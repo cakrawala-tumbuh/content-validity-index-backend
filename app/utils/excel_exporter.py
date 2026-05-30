@@ -42,47 +42,47 @@ def generate_cvi_excel(result: CVIResult, expert_names: dict[str, str] | None = 
     ws = wb.active
     ws.title = "Hasil CVI"  # type: ignore[union-attr]
 
-    HEADER_FILL = _hex_fill("4472C4")
-    RESULT_FILL = _hex_fill("D9E1F2")
-    BOLD_FONT = Font(bold=True)
-    WHITE_FONT = Font(bold=True, color="FFFFFF")
-    CENTER = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    header_fill = _hex_fill("4472C4")
+    result_fill = _hex_fill("D9E1F2")
+    bold_font = Font(bold=True)
+    white_font = Font(bold=True, color="FFFFFF")
+    center = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
     # --- Baris 1: Judul ---
     ws.merge_cells("A1:E1")  # type: ignore[union-attr]
     title_cell = ws["A1"]  # type: ignore[index]
     title_cell.value = f"Hasil Content Validity Index — {result.instrument_name}"
     title_cell.font = Font(bold=True, size=14)
-    title_cell.alignment = CENTER
+    title_cell.alignment = center
 
     # --- Baris 2: Info umum ---
     ws["A2"] = "Jumlah Expert:"  # type: ignore[index]
     ws["B2"] = result.n_experts  # type: ignore[index]
     ws["C2"] = "Jumlah Item:"  # type: ignore[index]
     ws["D2"] = result.n_items  # type: ignore[index]
-    ws["A2"].font = BOLD_FONT  # type: ignore[index]
-    ws["C2"].font = BOLD_FONT  # type: ignore[index]
+    ws["A2"].font = bold_font  # type: ignore[index]
+    ws["C2"].font = bold_font  # type: ignore[index]
 
     # --- Baris 3: Header ---
     headers = ["No", "Domain", "Item", "Jml. Relevan", "I-CVI", "Keterangan"]
     for col_idx, header in enumerate(headers, start=1):
         cell = ws.cell(row=3, column=col_idx, value=header)
-        cell.font = WHITE_FONT
-        cell.fill = HEADER_FILL
-        cell.alignment = CENTER
+        cell.font = white_font
+        cell.fill = header_fill
+        cell.alignment = center
 
     # --- Baris 4+: Data item ---
     for row_idx, item in enumerate(result.items, start=4):
-        ws.cell(row=row_idx, column=1, value=item.sequence_number).alignment = CENTER
+        ws.cell(row=row_idx, column=1, value=item.sequence_number).alignment = center
         ws.cell(row=row_idx, column=2, value=item.domain or "-")
         ws.cell(row=row_idx, column=3, value=item.content)
-        ws.cell(row=row_idx, column=4, value=item.n_relevant).alignment = CENTER
+        ws.cell(row=row_idx, column=4, value=item.n_relevant).alignment = center
         i_cvi_cell = ws.cell(row=row_idx, column=5, value=item.i_cvi)
         i_cvi_cell.number_format = "0.00"
-        i_cvi_cell.alignment = CENTER
+        i_cvi_cell.alignment = center
         status_text = "Valid" if item.is_valid else "Tidak Valid"
         status_cell = ws.cell(row=row_idx, column=6, value=status_text)
-        status_cell.alignment = CENTER
+        status_cell.alignment = center
         if not item.is_valid:
             status_cell.font = Font(color="FF0000")
 
@@ -96,13 +96,13 @@ def generate_cvi_excel(result: CVIResult, expert_names: dict[str, str] | None = 
         (s_cvi_ua_row, "S-CVI/UA (Universal Agreement)", result.s_cvi_ua),
     ]:
         label_cell = ws.cell(row=row_num, column=3, value=label)
-        label_cell.font = BOLD_FONT
-        label_cell.fill = RESULT_FILL
+        label_cell.font = bold_font
+        label_cell.fill = result_fill
         value_cell = ws.cell(row=row_num, column=5, value=value)
         value_cell.number_format = "0.00"
-        value_cell.font = BOLD_FONT
-        value_cell.fill = RESULT_FILL
-        value_cell.alignment = CENTER
+        value_cell.font = bold_font
+        value_cell.fill = result_fill
+        value_cell.alignment = center
 
     # --- Lebar kolom ---
     column_widths = [6, 20, 60, 15, 10, 15]

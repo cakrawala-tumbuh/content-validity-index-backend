@@ -19,7 +19,10 @@ router = APIRouter(prefix="/users", tags=["Users"])
     response_model=UserResponse,
     summary="Profil pengguna saat ini",
     description="Mengembalikan profil lengkap pengguna yang sedang login.",
-    responses={401: {"description": "Token tidak valid."}, 403: {"description": "Akun tidak aktif."}},
+    responses={
+        401: {"description": "Token tidak valid."},
+        403: {"description": "Akun tidak aktif."},
+    },
 )
 async def get_me(current_user: User = Depends(get_current_user)) -> UserResponse:
     """Mengambil profil pengguna yang sedang login.

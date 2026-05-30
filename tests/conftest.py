@@ -1,6 +1,5 @@
 """Fixtures pytest untuk test suite CVI backend."""
 
-import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -45,6 +44,7 @@ async def client(db: AsyncSession) -> AsyncClient:  # type: ignore[override]
     Yields:
         AsyncClient yang siap digunakan untuk integration test.
     """
+
     async def override_get_db() -> AsyncSession:  # type: ignore[override]
         """Override dependency get_db untuk menggunakan test DB."""
         yield db

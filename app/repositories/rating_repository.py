@@ -42,14 +42,10 @@ class RatingRepository:
         Returns:
             Daftar Rating untuk assignment tersebut.
         """
-        result = await self.db.execute(
-            select(Rating).where(Rating.assignment_id == assignment_id)
-        )
+        result = await self.db.execute(select(Rating).where(Rating.assignment_id == assignment_id))
         return list(result.scalars().all())
 
-    async def get_by_assignment_and_item(
-        self, assignment_id: str, item_id: str
-    ) -> Rating | None:
+    async def get_by_assignment_and_item(self, assignment_id: str, item_id: str) -> Rating | None:
         """Mengambil rating berdasarkan assignment dan item.
 
         Args:

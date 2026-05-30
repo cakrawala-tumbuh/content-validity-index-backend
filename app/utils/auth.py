@@ -8,7 +8,6 @@ import httpx
 from fastapi import HTTPException, status
 from jose import ExpiredSignatureError, JWTError, jwt
 
-
 # Cache JWKS untuk mengurangi request ke Authentik
 _jwks_cache: dict[str, Any] = {}
 _jwks_last_fetched: float = 0.0

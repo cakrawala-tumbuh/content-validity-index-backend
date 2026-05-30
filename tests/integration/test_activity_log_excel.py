@@ -14,6 +14,7 @@ class TestActivityLogRepository:
     async def test_create_dan_get_all(self, db: AsyncSession) -> None:
         """Harus bisa menyimpan dan mengambil log aktivitas."""
         import uuid
+
         repo = ActivityLogRepository(db)
         log = ActivityLog(
             id=str(uuid.uuid4()),
@@ -27,20 +28,23 @@ class TestActivityLogRepository:
         )
         await repo.create(log)
         logs = await repo.get_all()
-        assert any(l.action == "test_action" for l in logs)
+        assert any(log.action == "test_action" for log in logs)
 
     async def test_filter_by_action(self, db: AsyncSession) -> None:
         """Harus bisa memfilter log berdasarkan action."""
         import uuid
+
         repo = ActivityLogRepository(db)
         for action in ["login", "logout", "login"]:
-            await repo.create(ActivityLog(
-                id=str(uuid.uuid4()),
-                action=action,
-                ip_address="127.0.0.1",
-            ))
+            await repo.create(
+                ActivityLog(
+                    id=str(uuid.uuid4()),
+                    action=action,
+                    ip_address="127.0.0.1",
+                )
+            )
         login_logs = await repo.get_all(action="login")
-        assert all(l.action == "login" for l in login_logs)
+        assert all(log.action == "login" for log in login_logs)
         assert len(login_logs) >= 2
 
 

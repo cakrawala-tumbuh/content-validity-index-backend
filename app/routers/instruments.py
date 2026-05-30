@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.dependencies.auth import get_current_user, require_admin, require_expert
+from app.dependencies.auth import get_current_user, require_admin
 from app.models.user import User
 from app.schemas.common import MessageResponse
 from app.schemas.cvi import CVIResult
@@ -89,8 +89,12 @@ async def create_instrument(
     service = InstrumentService(db)
     instrument = await service.create(data, created_by=admin.id)
     await log_activity(
-        db=db, action="create_instrument", request=request,
-        user_id=admin.id, resource_type="instrument", resource_id=instrument.id,
+        db=db,
+        action="create_instrument",
+        request=request,
+        user_id=admin.id,
+        resource_type="instrument",
+        resource_id=instrument.id,
     )
     return InstrumentResponse.model_validate(instrument)
 
@@ -157,8 +161,12 @@ async def update_instrument(
     service = InstrumentService(db)
     updated = await service.update(instrument_id, data)
     await log_activity(
-        db=db, action="update_instrument", request=request,
-        user_id=admin.id, resource_type="instrument", resource_id=instrument_id,
+        db=db,
+        action="update_instrument",
+        request=request,
+        user_id=admin.id,
+        resource_type="instrument",
+        resource_id=instrument_id,
     )
     return InstrumentResponse.model_validate(updated)
 
@@ -193,8 +201,12 @@ async def delete_instrument(
     service = InstrumentService(db)
     await service.delete(instrument_id)
     await log_activity(
-        db=db, action="delete_instrument", request=request,
-        user_id=admin.id, resource_type="instrument", resource_id=instrument_id,
+        db=db,
+        action="delete_instrument",
+        request=request,
+        user_id=admin.id,
+        resource_type="instrument",
+        resource_id=instrument_id,
     )
     return MessageResponse(message=f"Instrumen '{instrument_id}' berhasil dihapus.")
 
@@ -267,8 +279,12 @@ async def create_item(
     service = ItemService(db)
     item = await service.create(instrument_id, data)
     await log_activity(
-        db=db, action="create_item", request=request,
-        user_id=admin.id, resource_type="item", resource_id=item.id,
+        db=db,
+        action="create_item",
+        request=request,
+        user_id=admin.id,
+        resource_type="item",
+        resource_id=item.id,
     )
     return ItemResponse.model_validate(item)
 
@@ -306,8 +322,12 @@ async def bulk_create_items(
     service = ItemService(db)
     items = await service.bulk_create(instrument_id, data)
     await log_activity(
-        db=db, action="bulk_create_items", request=request,
-        user_id=admin.id, resource_type="instrument", resource_id=instrument_id,
+        db=db,
+        action="bulk_create_items",
+        request=request,
+        user_id=admin.id,
+        resource_type="instrument",
+        resource_id=instrument_id,
         metadata={"count": len(items)},
     )
     return [ItemResponse.model_validate(i) for i in items]
@@ -347,8 +367,12 @@ async def update_item(
     service = ItemService(db)
     updated = await service.update(item_id, instrument_id, data)
     await log_activity(
-        db=db, action="update_item", request=request,
-        user_id=admin.id, resource_type="item", resource_id=item_id,
+        db=db,
+        action="update_item",
+        request=request,
+        user_id=admin.id,
+        resource_type="item",
+        resource_id=item_id,
     )
     return ItemResponse.model_validate(updated)
 
@@ -385,8 +409,12 @@ async def delete_item(
     service = ItemService(db)
     await service.delete(item_id, instrument_id)
     await log_activity(
-        db=db, action="delete_item", request=request,
-        user_id=admin.id, resource_type="item", resource_id=item_id,
+        db=db,
+        action="delete_item",
+        request=request,
+        user_id=admin.id,
+        resource_type="item",
+        resource_id=item_id,
     )
     return MessageResponse(message=f"Item '{item_id}' berhasil dihapus.")
 
@@ -460,8 +488,12 @@ async def create_assignment(
     service = ExpertAssignmentService(db)
     assignment = await service.create(instrument_id, data, assigned_by=admin.id)
     await log_activity(
-        db=db, action="assign_expert", request=request,
-        user_id=admin.id, resource_type="expert_assignment", resource_id=assignment.id,
+        db=db,
+        action="assign_expert",
+        request=request,
+        user_id=admin.id,
+        resource_type="expert_assignment",
+        resource_id=assignment.id,
         metadata={"expert_id": data.user_id},
     )
     return AssignmentResponse.model_validate(assignment)
@@ -499,8 +531,12 @@ async def delete_assignment(
     service = ExpertAssignmentService(db)
     await service.delete(assignment_id)
     await log_activity(
-        db=db, action="delete_assignment", request=request,
-        user_id=admin.id, resource_type="expert_assignment", resource_id=assignment_id,
+        db=db,
+        action="delete_assignment",
+        request=request,
+        user_id=admin.id,
+        resource_type="expert_assignment",
+        resource_id=assignment_id,
     )
     return MessageResponse(message=f"Assignment '{assignment_id}' berhasil dihapus.")
 
@@ -546,9 +582,7 @@ async def calculate_cvi(
 @router.get(
     "/{instrument_id}/cvi/export",
     summary="Ekspor hasil CVI ke Excel",
-    description=(
-        "Mengunduh hasil kalkulasi CVI dalam format file Excel (.xlsx). Hanya admin."
-    ),
+    description=("Mengunduh hasil kalkulasi CVI dalam format file Excel (.xlsx). Hanya admin."),
     responses={
         200: {"content": {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}}},
         400: {"description": "Belum ada penilaian."},
@@ -577,8 +611,12 @@ async def export_cvi_excel(
     result = await cvi_service.calculate(instrument_id)
     excel_bytes = generate_cvi_excel(result)
     await log_activity(
-        db=db, action="export_cvi_excel", request=request,
-        user_id=admin.id, resource_type="instrument", resource_id=instrument_id,
+        db=db,
+        action="export_cvi_excel",
+        request=request,
+        user_id=admin.id,
+        resource_type="instrument",
+        resource_id=instrument_id,
     )
     filename = f"CVI_{result.instrument_name.replace(' ', '_')}.xlsx"
     return Response(

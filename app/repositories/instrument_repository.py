@@ -30,9 +30,7 @@ class InstrumentRepository:
         Returns:
             Instance Instrument jika ditemukan, None jika tidak.
         """
-        result = await self.db.execute(
-            select(Instrument).where(Instrument.id == instrument_id)
-        )
+        result = await self.db.execute(select(Instrument).where(Instrument.id == instrument_id))
         return result.scalar_one_or_none()
 
     async def get_all(self, skip: int = 0, limit: int = 100) -> list[Instrument]:

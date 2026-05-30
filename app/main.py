@@ -1,8 +1,8 @@
 """Entrypoint aplikasi FastAPI Content Validity Index."""
 
 import logging
-from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,8 +31,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     logger.info("Menjalankan migrasi database...")
     try:
-        from alembic import command
         from alembic.config import Config
+
+        from alembic import command
 
         alembic_cfg = Config("alembic.ini")
         alembic_cfg.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

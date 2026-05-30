@@ -109,11 +109,13 @@ class TestItemService:
             InstrumentCreate(name="Instrumen Bulk"), created_by=admin.id
         )
         item_service = ItemService(db)
-        bulk_data = ItemBulkCreate(items=[
-            ItemCreate(sequence_number=1, content="Item 1"),
-            ItemCreate(sequence_number=2, content="Item 2"),
-            ItemCreate(sequence_number=3, content="Item 3"),
-        ])
+        bulk_data = ItemBulkCreate(
+            items=[
+                ItemCreate(sequence_number=1, content="Item 1"),
+                ItemCreate(sequence_number=2, content="Item 2"),
+                ItemCreate(sequence_number=3, content="Item 3"),
+            ]
+        )
         items = await item_service.bulk_create(instrument.id, bulk_data)
         assert len(items) == 3
 

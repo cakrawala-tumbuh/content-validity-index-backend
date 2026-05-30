@@ -29,14 +29,24 @@ async def _setup_instrument_with_items(
         Tuple (admin, expert, instrument_id).
     """
     repo = UserRepository(db)
-    admin = await repo.create(User(
-        id=f"adm-{suffix}", email=f"adm{suffix}@test.com",
-        full_name="Admin", role="admin", is_active=True,
-    ))
-    expert = await repo.create(User(
-        id=f"exp-{suffix}", email=f"exp{suffix}@test.com",
-        full_name="Expert", role="expert", is_active=True,
-    ))
+    admin = await repo.create(
+        User(
+            id=f"adm-{suffix}",
+            email=f"adm{suffix}@test.com",
+            full_name="Admin",
+            role="admin",
+            is_active=True,
+        )
+    )
+    expert = await repo.create(
+        User(
+            id=f"exp-{suffix}",
+            email=f"exp{suffix}@test.com",
+            full_name="Expert",
+            role="expert",
+            is_active=True,
+        )
+    )
 
     inst_service = InstrumentService(db)
     instrument = await inst_service.create(
@@ -45,9 +55,7 @@ async def _setup_instrument_with_items(
 
     item_service = ItemService(db)
     for i in range(1, 4):
-        await item_service.create(
-            instrument.id, ItemCreate(sequence_number=i, content=f"Item {i}")
-        )
+        await item_service.create(instrument.id, ItemCreate(sequence_number=i, content=f"Item {i}"))
 
     return admin, expert, instrument.id
 
@@ -115,10 +123,11 @@ class TestRatingService:
         items = await item_service.get_by_instrument(instrument_id)
 
         from app.services.rating_service import RatingService
+
         rating_service = RatingService(db)
-        bulk_data = RatingBulkCreate(ratings=[
-            RatingItem(item_id=item.id, relevance_score=4) for item in items
-        ])
+        bulk_data = RatingBulkCreate(
+            ratings=[RatingItem(item_id=item.id, relevance_score=4) for item in items]
+        )
         ratings = await rating_service.bulk_submit(assignment.id, expert.id, bulk_data)
         assert len(ratings) == 3
 
@@ -134,10 +143,11 @@ class TestRatingService:
         items = await item_service.get_by_instrument(instrument_id)
 
         from app.services.rating_service import RatingService
+
         rating_service = RatingService(db)
-        bulk_data = RatingBulkCreate(ratings=[
-            RatingItem(item_id=item.id, relevance_score=3) for item in items
-        ])
+        bulk_data = RatingBulkCreate(
+            ratings=[RatingItem(item_id=item.id, relevance_score=3) for item in items]
+        )
         await rating_service.bulk_submit(assignment.id, expert.id, bulk_data)
 
         # Verifikasi status assignment
@@ -152,10 +162,15 @@ class TestCVIService:
         """Harus bisa menghitung CVI setelah semua expert memberikan penilaian."""
         admin, expert1, instrument_id = await _setup_instrument_with_items(db, "cvi1")
         repo = UserRepository(db)
-        expert2 = await repo.create(User(
-            id="exp2-cvi1", email="exp2cvi1@test.com",
-            full_name="Expert 2", role="expert", is_active=True,
-        ))
+        expert2 = await repo.create(
+            User(
+                id="exp2-cvi1",
+                email="exp2cvi1@test.com",
+                full_name="Expert 2",
+                role="expert",
+                is_active=True,
+            )
+        )
 
         assign_service = ExpertAssignmentService(db)
         asgn1 = await assign_service.create(
@@ -169,16 +184,25 @@ class TestCVIService:
         items = await item_service.get_by_instrument(instrument_id)
 
         from app.services.rating_service import RatingService
+
         rating_service = RatingService(db)
 
         # Expert 1: semua relevan (skor 4)
-        await rating_service.bulk_submit(asgn1.id, expert1.id, RatingBulkCreate(ratings=[
-            RatingItem(item_id=item.id, relevance_score=4) for item in items
-        ]))
+        await rating_service.bulk_submit(
+            asgn1.id,
+            expert1.id,
+            RatingBulkCreate(
+                ratings=[RatingItem(item_id=item.id, relevance_score=4) for item in items]
+            ),
+        )
         # Expert 2: semua relevan (skor 3)
-        await rating_service.bulk_submit(asgn2.id, expert2.id, RatingBulkCreate(ratings=[
-            RatingItem(item_id=item.id, relevance_score=3) for item in items
-        ]))
+        await rating_service.bulk_submit(
+            asgn2.id,
+            expert2.id,
+            RatingBulkCreate(
+                ratings=[RatingItem(item_id=item.id, relevance_score=3) for item in items]
+            ),
+        )
 
         cvi_service = CVIService(db)
         result = await cvi_service.calculate(instrument_id)

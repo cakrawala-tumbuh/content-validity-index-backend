@@ -43,9 +43,7 @@ class ItemRepository:
             Daftar Item yang diurutkan berdasarkan sequence_number.
         """
         result = await self.db.execute(
-            select(Item)
-            .where(Item.instrument_id == instrument_id)
-            .order_by(Item.sequence_number)
+            select(Item).where(Item.instrument_id == instrument_id).order_by(Item.sequence_number)
         )
         return list(result.scalars().all())
 

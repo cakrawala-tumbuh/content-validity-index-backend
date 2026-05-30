@@ -10,8 +10,6 @@ class MessageResponse(BaseModel):
         message: Pesan yang dikembalikan.
     """
 
-    model_config = ConfigDict(
-        json_schema_extra={"example": {"message": "Operasi berhasil."}}
-    )
+    model_config = ConfigDict(json_schema_extra={"example": {"message": "Operasi berhasil."}})
 
     message: str

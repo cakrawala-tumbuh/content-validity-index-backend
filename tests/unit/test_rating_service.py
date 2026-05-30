@@ -18,15 +18,19 @@ class TestRatingServiceValidation:
         mock_assignment_repo = AsyncMock()
         mock_assignment_repo.get_by_id.return_value = None
 
-        with patch(
-            "app.services.rating_service.ExpertAssignmentRepository",
-            return_value=mock_assignment_repo,
-        ), patch(
-            "app.services.rating_service.RatingRepository",
-            return_value=AsyncMock(),
-        ), patch(
-            "app.services.rating_service.ItemRepository",
-            return_value=AsyncMock(),
+        with (
+            patch(
+                "app.services.rating_service.ExpertAssignmentRepository",
+                return_value=mock_assignment_repo,
+            ),
+            patch(
+                "app.services.rating_service.RatingRepository",
+                return_value=AsyncMock(),
+            ),
+            patch(
+                "app.services.rating_service.ItemRepository",
+                return_value=AsyncMock(),
+            ),
         ):
             from app.services.rating_service import RatingService
 
@@ -47,15 +51,19 @@ class TestRatingServiceValidation:
         mock_assignment_repo = AsyncMock()
         mock_assignment_repo.get_by_id.return_value = mock_assignment
 
-        with patch(
-            "app.services.rating_service.ExpertAssignmentRepository",
-            return_value=mock_assignment_repo,
-        ), patch(
-            "app.services.rating_service.RatingRepository",
-            return_value=AsyncMock(),
-        ), patch(
-            "app.services.rating_service.ItemRepository",
-            return_value=AsyncMock(),
+        with (
+            patch(
+                "app.services.rating_service.ExpertAssignmentRepository",
+                return_value=mock_assignment_repo,
+            ),
+            patch(
+                "app.services.rating_service.RatingRepository",
+                return_value=AsyncMock(),
+            ),
+            patch(
+                "app.services.rating_service.ItemRepository",
+                return_value=AsyncMock(),
+            ),
         ):
             from app.services.rating_service import RatingService
 
