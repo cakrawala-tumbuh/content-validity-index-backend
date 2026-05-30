@@ -19,7 +19,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(
-        String(36),
+        String(255),
         primary_key=True,
         default=lambda: str(uuid.uuid4()),
         comment="ID unik pengguna (sub dari JWT Authentik)",

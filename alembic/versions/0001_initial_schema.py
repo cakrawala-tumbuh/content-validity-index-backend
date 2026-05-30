@@ -28,7 +28,7 @@ def upgrade() -> None:
         sa.Column("institution", sa.String(255), nullable=True),
         sa.Column("expertise_area", sa.String(255), nullable=True),
         sa.Column("role", sa.String(20), nullable=False, server_default="expert"),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("1")),
+        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
         sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.PrimaryKeyConstraint("id"),

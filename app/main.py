@@ -1,6 +1,7 @@
 """Entrypoint aplikasi FastAPI Content Validity Index."""
 
 import logging
+import subprocess
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -23,6 +24,9 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Kelola lifecycle aplikasi: jalankan migrasi saat startup.
 
+    Menjalankan `alembic upgrade head` sebagai subprocess terpisah agar
+    tidak ada konflik event loop antara asyncpg dan FastAPI.
+
     Args:
         app: Instance FastAPI.
 
@@ -31,17 +35,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     logger.info("Menjalankan migrasi database...")
     try:
-        from alembic.config import Config
-
-        from alembic import command
-
-        alembic_cfg = Config("alembic.ini")
-        alembic_cfg.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
-        command.upgrade(alembic_cfg, "head")
+        result = subprocess.run(
+            ["alembic", "upgrade", "head"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        if result.stdout:
+            logger.info(result.stdout)
+        if result.stderr:
+            logger.info(result.stderr)
         logger.info("Migrasi database selesai.")
-    except Exception as exc:
-        logger.error("Gagal menjalankan migrasi: %s", exc)
-        raise
+    except subprocess.CalledProcessError as exc:
+        logger.error("Gagal menjalankan migrasi: %s\n%s", exc, exc.stderr)
+        raise RuntimeError("Migrasi database gagal.") from exc
     yield
     logger.info("Aplikasi berhenti.")
 

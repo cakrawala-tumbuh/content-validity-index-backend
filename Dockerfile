@@ -22,6 +22,10 @@ COPY app/ ./app/
 COPY alembic/ ./alembic/
 COPY alembic.ini .
 
+# Instal curl untuk healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 # Buat direktori data untuk file SQLite
 RUN mkdir -p /data
 
