@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
 
@@ -39,10 +39,12 @@ class Item(Base):
         nullable=False,
         comment="Teks/pernyataan dari item ini",
     )
-    domain: Mapped[str | None] = mapped_column(
-        String(255),
+    dimension_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("dimensions.id", ondelete="SET NULL"),
         nullable=True,
-        comment="Domain/dimensi opsional untuk pengelompokan item",
+        index=True,
+        comment="ID dimensi yang mengelompokkan item ini",
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
@@ -53,3 +55,19 @@ class Item(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+    # Relationships
+    dimension: Mapped["Dimension | None"] = relationship(  # noqa: F821
+        "Dimension",
+        backref="items",
+        lazy="joined",
+    )
+
+    @property
+    def dimension_name(self) -> str | None:
+        """Mengembalikan nama dimensi dari relasi dimension.
+
+        Returns:
+            Nama dimensi jika ada, None jika tidak.
+        """
+        return self.dimension.name if self.dimension else None

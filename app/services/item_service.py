@@ -73,7 +73,7 @@ class ItemService:
             instrument_id=instrument_id,
             sequence_number=data.sequence_number,
             content=data.content,
-            domain=data.domain,
+            dimension_id=data.dimension_id,
         )
         return await self.repo.create(item)
 
@@ -93,7 +93,7 @@ class ItemService:
                 instrument_id=instrument_id,
                 sequence_number=item_data.sequence_number,
                 content=item_data.content,
-                domain=item_data.domain,
+                dimension_id=item_data.dimension_id,
             )
             for item_data in data.items
         ]
@@ -118,8 +118,8 @@ class ItemService:
             item.sequence_number = data.sequence_number
         if data.content is not None:
             item.content = data.content
-        if data.domain is not None:
-            item.domain = data.domain
+        if data.dimension_id is not None:
+            item.dimension_id = data.dimension_id
         return await self.repo.update(item)
 
     async def delete(self, item_id: str, instrument_id: str) -> None:

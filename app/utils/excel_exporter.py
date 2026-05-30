@@ -64,7 +64,7 @@ def generate_cvi_excel(result: CVIResult, expert_names: dict[str, str] | None = 
     ws["C2"].font = bold_font
 
     # --- Baris 3: Header ---
-    headers = ["No", "Domain", "Item", "Jml. Relevan", "I-CVI", "Keterangan"]
+    headers = ["No", "Dimensi", "Item", "Jml. Relevan", "I-CVI", "Keterangan"]
     for col_idx, header in enumerate(headers, start=1):
         cell = ws.cell(row=3, column=col_idx, value=header)
         cell.font = white_font
@@ -74,7 +74,7 @@ def generate_cvi_excel(result: CVIResult, expert_names: dict[str, str] | None = 
     # --- Baris 4+: Data item ---
     for row_idx, item in enumerate(result.items, start=4):
         ws.cell(row=row_idx, column=1, value=item.sequence_number).alignment = center
-        ws.cell(row=row_idx, column=2, value=item.domain or "-")
+        ws.cell(row=row_idx, column=2, value=item.dimension_name or "-")
         ws.cell(row=row_idx, column=3, value=item.content)
         ws.cell(row=row_idx, column=4, value=item.n_relevant).alignment = center
         i_cvi_cell = ws.cell(row=row_idx, column=5, value=item.i_cvi)

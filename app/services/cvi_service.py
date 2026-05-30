@@ -3,6 +3,7 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.repositories.dimension_repository import DimensionRepository
 from app.repositories.expert_assignment_repository import ExpertAssignmentRepository
 from app.repositories.instrument_repository import InstrumentRepository
 from app.repositories.item_repository import ItemRepository
@@ -168,6 +169,11 @@ class CVIService:
         n_experts = len(expert_ids)
         item_results: list[ItemCVIResult] = []
 
+        # Ambil semua dimensi untuk mendapatkan nama dimensi per item
+        dim_repo = DimensionRepository(self.db)
+        dimensions = await dim_repo.get_by_instrument(instrument_id)
+        dim_map = {d.id: d.name for d in dimensions}
+
         for item in items:
             scores = ratings_by_item[item.id]
             n_rated = len(scores)
@@ -183,7 +189,7 @@ class CVIService:
                     item_id=item.id,
                     sequence_number=item.sequence_number,
                     content=item.content,
-                    domain=item.domain,
+                    dimension_name=dim_map.get(item.dimension_id) if item.dimension_id else None,
                     n_experts=n_rated,
                     n_relevant=n_relevant,
                     i_cvi=round(i_cvi_val, 4),

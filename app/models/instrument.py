@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
 
@@ -50,4 +50,11 @@ class Instrument(Base):
         nullable=False,
         server_default=func.now(),
         onupdate=func.now(),
+    )
+
+    # Relationships
+    dimensions: Mapped[list["Dimension"]] = relationship(  # noqa: F821
+        "Dimension",
+        back_populates="instrument",
+        lazy="selectin",
     )

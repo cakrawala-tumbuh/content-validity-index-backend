@@ -3,6 +3,12 @@
 from app.schemas.activity_log import ActivityLogResponse
 from app.schemas.common import MessageResponse
 from app.schemas.cvi import CVIResult, ItemCVIResult
+from app.schemas.dimension import (
+    DimensionBulkCreate,
+    DimensionCreate,
+    DimensionResponse,
+    DimensionUpdate,
+)
 from app.schemas.expert_assignment import AssignmentCreate, AssignmentResponse
 from app.schemas.instrument import InstrumentCreate, InstrumentResponse, InstrumentUpdate
 from app.schemas.item import ItemBulkCreate, ItemCreate, ItemResponse, ItemUpdate
@@ -20,6 +26,10 @@ __all__ = [
     "ItemBulkCreate",
     "ItemUpdate",
     "ItemResponse",
+    "DimensionCreate",
+    "DimensionBulkCreate",
+    "DimensionUpdate",
+    "DimensionResponse",
     "AssignmentCreate",
     "AssignmentResponse",
     "RatingBulkCreate",

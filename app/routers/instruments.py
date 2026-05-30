@@ -8,10 +8,17 @@ from app.dependencies.auth import get_current_user, require_admin
 from app.models.user import User
 from app.schemas.common import MessageResponse
 from app.schemas.cvi import CVIResult
+from app.schemas.dimension import (
+    DimensionBulkCreate,
+    DimensionCreate,
+    DimensionResponse,
+    DimensionUpdate,
+)
 from app.schemas.expert_assignment import AssignmentCreate, AssignmentResponse
 from app.schemas.instrument import InstrumentCreate, InstrumentResponse, InstrumentUpdate
 from app.schemas.item import ItemBulkCreate, ItemCreate, ItemResponse, ItemUpdate
 from app.services.cvi_service import CVIService
+from app.services.dimension_service import DimensionService
 from app.services.expert_assignment_service import ExpertAssignmentService
 from app.services.instrument_service import InstrumentService
 from app.services.item_service import ItemService
@@ -422,6 +429,214 @@ async def delete_item(
         resource_id=item_id,
     )
     return MessageResponse(message=f"Item '{item_id}' berhasil dihapus.")
+
+
+# ────────────────────────────────────────────────────────────
+#  Dimensions
+# ────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/{instrument_id}/dimensions",
+    response_model=list[DimensionResponse],
+    summary="Daftar dimensi instrumen",
+    description="Mengambil semua dimensi dari sebuah instrumen.",
+    responses={
+        401: {"description": "Token tidak valid."},
+        404: {"description": "Instrumen tidak ditemukan."},
+    },
+)
+async def list_dimensions(
+    instrument_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[DimensionResponse]:
+    """Mengambil daftar dimensi dalam sebuah instrumen.
+
+    Args:
+        instrument_id: ID instrumen.
+        current_user: Pengguna yang sedang login.
+        db: AsyncSession database.
+
+    Returns:
+        Daftar dimensi yang terurut berdasarkan nama.
+    """
+    service = DimensionService(db)
+    dimensions = await service.get_by_instrument(instrument_id)
+    return [DimensionResponse.model_validate(d) for d in dimensions]
+
+
+@router.post(
+    "/{instrument_id}/dimensions",
+    response_model=DimensionResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Tambah satu dimensi",
+    description="Menambahkan satu dimensi ke instrumen. Hanya admin.",
+    responses={
+        403: {"description": "Akses ditolak."},
+        404: {"description": "Instrumen tidak ditemukan."},
+    },
+)
+async def create_dimension(
+    instrument_id: str,
+    data: DimensionCreate,
+    request: Request,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> DimensionResponse:
+    """Menambahkan satu dimensi ke instrumen (admin only).
+
+    Args:
+        instrument_id: ID instrumen.
+        data: Data dimensi baru.
+        request: HTTP request.
+        admin: Admin yang menambahkan dimensi.
+        db: AsyncSession database.
+
+    Returns:
+        Dimensi yang baru dibuat.
+    """
+    service = DimensionService(db)
+    dimension = await service.create(instrument_id, data)
+    await log_activity(
+        db=db,
+        action="create_dimension",
+        request=request,
+        user_id=admin.id,
+        resource_type="dimension",
+        resource_id=dimension.id,
+    )
+    return DimensionResponse.model_validate(dimension)
+
+
+@router.post(
+    "/{instrument_id}/dimensions/bulk",
+    response_model=list[DimensionResponse],
+    status_code=status.HTTP_201_CREATED,
+    summary="Tambah banyak dimensi sekaligus",
+    description="Menambahkan beberapa dimensi ke instrumen dalam satu request. Hanya admin.",
+    responses={
+        403: {"description": "Akses ditolak."},
+        404: {"description": "Instrumen tidak ditemukan."},
+    },
+)
+async def bulk_create_dimensions(
+    instrument_id: str,
+    data: DimensionBulkCreate,
+    request: Request,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> list[DimensionResponse]:
+    """Menambahkan banyak dimensi ke instrumen sekaligus (admin only).
+
+    Args:
+        instrument_id: ID instrumen.
+        data: Data dimensi dalam bentuk list.
+        request: HTTP request.
+        admin: Admin yang menambahkan dimensi.
+        db: AsyncSession database.
+
+    Returns:
+        Daftar dimensi yang baru dibuat.
+    """
+    service = DimensionService(db)
+    dimensions = await service.bulk_create(instrument_id, data)
+    await log_activity(
+        db=db,
+        action="bulk_create_dimensions",
+        request=request,
+        user_id=admin.id,
+        resource_type="dimension",
+        resource_id=instrument_id,
+        metadata={"count": len(dimensions)},
+    )
+    return [DimensionResponse.model_validate(d) for d in dimensions]
+
+
+@router.patch(
+    "/{instrument_id}/dimensions/{dimension_id}",
+    response_model=DimensionResponse,
+    summary="Perbarui dimensi",
+    description="Memperbarui nama atau deskripsi dimensi. Hanya admin.",
+    responses={
+        403: {"description": "Akses ditolak."},
+        404: {"description": "Dimensi tidak ditemukan."},
+    },
+)
+async def update_dimension(
+    instrument_id: str,
+    dimension_id: str,
+    data: DimensionUpdate,
+    request: Request,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> DimensionResponse:
+    """Memperbarui dimensi (admin only).
+
+    Args:
+        instrument_id: ID instrumen.
+        dimension_id: ID dimensi yang akan diperbarui.
+        data: Data pembaruan dimensi.
+        request: HTTP request.
+        admin: Admin yang memperbarui.
+        db: AsyncSession database.
+
+    Returns:
+        Dimensi yang sudah diperbarui.
+    """
+    service = DimensionService(db)
+    updated = await service.update(dimension_id, instrument_id, data)
+    await log_activity(
+        db=db,
+        action="update_dimension",
+        request=request,
+        user_id=admin.id,
+        resource_type="dimension",
+        resource_id=dimension_id,
+    )
+    return DimensionResponse.model_validate(updated)
+
+
+@router.delete(
+    "/{instrument_id}/dimensions/{dimension_id}",
+    response_model=MessageResponse,
+    summary="Hapus dimensi",
+    description="Menghapus dimensi dari instrumen. Hanya admin.",
+    responses={
+        403: {"description": "Akses ditolak."},
+        404: {"description": "Dimensi tidak ditemukan."},
+    },
+)
+async def delete_dimension(
+    instrument_id: str,
+    dimension_id: str,
+    request: Request,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponse:
+    """Menghapus dimensi dari instrumen (admin only).
+
+    Args:
+        instrument_id: ID instrumen.
+        dimension_id: ID dimensi yang akan dihapus.
+        request: HTTP request.
+        admin: Admin yang menghapus.
+        db: AsyncSession database.
+
+    Returns:
+        Pesan konfirmasi.
+    """
+    service = DimensionService(db)
+    await service.delete(dimension_id, instrument_id)
+    await log_activity(
+        db=db,
+        action="delete_dimension",
+        request=request,
+        user_id=admin.id,
+        resource_type="dimension",
+        resource_id=dimension_id,
+    )
+    return MessageResponse(message=f"Dimensi '{dimension_id}' berhasil dihapus.")
 
 
 # ────────────────────────────────────────────────────────────
