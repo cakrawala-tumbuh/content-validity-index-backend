@@ -41,8 +41,10 @@ Tandai setiap poin secara mental. Jika ada yang belum terpenuhi, **selesaikan du
 - [ ] Commit message ditulis dalam **Bahasa Indonesia**.
 - [ ] Format commit mengikuti: `<tipe>(<scope>): <deskripsi singkat>`.
 - [ ] Tipe commit sesuai dengan perubahan yang dilakukan (feat/fix/docs/test/refactor/chore/style/perf).
-- [ ] Tidak ada push langsung ke `master` kecuali diminta secara **eksplisit**.
-- [ ] Jika tidak diminta push langsung: branch baru sudah dibuat dan PR sudah dibuat via `gh pr create`.
+- [ ] Semua commit di lokal **WAJIB** dilakukan di branch `master`.
+- [ ] Push menyesuaikan instruksi:
+      - Jika diminta push ke master: `git push origin master`.
+      - Jika diminta buat PR: push master lokal ke branch baru di GitHub lalu `gh pr create`.
 
 ### ✅ Checklist Docker & Keamanan
 
@@ -241,12 +243,12 @@ beserta interpretasinya.
 | Branch | Deskripsi |
 |---|---|
 | `master` | Branch utama, selalu stabil dan siap rilis |
-| `feature/<nama>` | Pengembangan fitur baru |
-| `fix/<nama>` | Perbaikan bug |
-| `chore/<nama>` | Perubahan non-fungsional |
 
-- **DILARANG push langsung ke `master`** kecuali diminta secara **eksplisit** oleh pengguna.
-- Apabila tidak ada instruksi eksplisit untuk push ke master: **WAJIB** buat branch baru, lalu **WAJIB** buat Pull Request ke `master`.
+- Semua commit di lokal **WAJIB** dilakukan di branch `master`.
+- **DILARANG** menggunakan branch lokal selain `master`.
+- Ketika push, ikuti instruksi pengguna:
+  - **Jika diminta push ke master**: `git push origin master`.
+  - **Jika diminta buat PR**: push dari master lokal ke branch baru di GitHub, lalu `gh pr create`.
 - **WAJIB** gunakan `gh pr create` untuk membuat PR — jangan gunakan cara lain.
 
 ### Kebijakan Tagging (Semantic Versioning)
