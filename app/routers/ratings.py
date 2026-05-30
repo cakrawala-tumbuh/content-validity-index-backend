@@ -170,7 +170,6 @@ async def update_rating(
         assignment_id=assignment_id,
         data=data,
         user_id=current_user.id,
-        role=current_user.role,
     )
     await log_activity(
         db=db,

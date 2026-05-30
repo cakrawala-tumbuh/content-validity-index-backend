@@ -40,7 +40,7 @@ def generate_cvi_excel(result: CVIResult, expert_names: dict[str, str] | None = 
     """
     wb = Workbook()
     ws = wb.active
-    ws.title = "Hasil CVI"  # type: ignore[union-attr]
+    ws.title = "Hasil CVI"
 
     header_fill = _hex_fill("4472C4")
     result_fill = _hex_fill("D9E1F2")
@@ -49,19 +49,19 @@ def generate_cvi_excel(result: CVIResult, expert_names: dict[str, str] | None = 
     center = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
     # --- Baris 1: Judul ---
-    ws.merge_cells("A1:E1")  # type: ignore[union-attr]
-    title_cell = ws["A1"]  # type: ignore[index]
+    ws.merge_cells("A1:E1")
+    title_cell = ws["A1"]
     title_cell.value = f"Hasil Content Validity Index — {result.instrument_name}"
     title_cell.font = Font(bold=True, size=14)
     title_cell.alignment = center
 
     # --- Baris 2: Info umum ---
-    ws["A2"] = "Jumlah Expert:"  # type: ignore[index]
-    ws["B2"] = result.n_experts  # type: ignore[index]
-    ws["C2"] = "Jumlah Item:"  # type: ignore[index]
-    ws["D2"] = result.n_items  # type: ignore[index]
-    ws["A2"].font = bold_font  # type: ignore[index]
-    ws["C2"].font = bold_font  # type: ignore[index]
+    ws["A2"] = "Jumlah Expert:"
+    ws["B2"] = result.n_experts
+    ws["C2"] = "Jumlah Item:"
+    ws["D2"] = result.n_items
+    ws["A2"].font = bold_font
+    ws["C2"].font = bold_font
 
     # --- Baris 3: Header ---
     headers = ["No", "Domain", "Item", "Jml. Relevan", "I-CVI", "Keterangan"]
@@ -107,7 +107,7 @@ def generate_cvi_excel(result: CVIResult, expert_names: dict[str, str] | None = 
     # --- Lebar kolom ---
     column_widths = [6, 20, 60, 15, 10, 15]
     for col_idx, width in enumerate(column_widths, start=1):
-        ws.column_dimensions[get_column_letter(col_idx)].width = width  # type: ignore[union-attr]
+        ws.column_dimensions[get_column_letter(col_idx)].width = width
 
     buffer = BytesIO()
     wb.save(buffer)
