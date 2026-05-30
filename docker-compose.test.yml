@@ -1,0 +1,15 @@
+services:
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    # Override CMD menggunakan pytest langsung (sudah ada di image)
+    command: pytest tests/ -v --cov=app --cov-report=term-missing --cov-fail-under=80
+    environment:
+      DATABASE_URL: "sqlite+aiosqlite:///:memory:"
+      AUTHENTIK_ISSUER_URL: "https://authentik.test/application/o/cvi/"
+      AUTHENTIK_ADMIN_GROUP: "cvi-admin"
+      AUTHENTIK_EXPERT_GROUP: "cvi-expert"
+      APP_ENV: "testing"
+      CORS_ORIGINS: '["http://localhost:3000"]'
+    # Tidak ada dependensi eksternal — SQLite in-memory

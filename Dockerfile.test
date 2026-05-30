@@ -1,0 +1,23 @@
+# Dockerfile untuk test — extend dari image production + tambahkan dev dependencies
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+
+COPY pyproject.toml README.md ./
+
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir --prefix=/install ".[dev]"
+
+
+FROM python:3.11-slim AS test
+
+WORKDIR /app
+
+COPY --from=builder /install /usr/local
+COPY pyproject.toml README.md ./
+COPY app/ ./app/
+COPY tests/ ./tests/
+COPY alembic/ ./alembic/
+COPY alembic.ini .
+
+CMD ["pytest", "tests/", "-v", "--cov=app", "--cov-report=term-missing", "--cov-fail-under=80"]
