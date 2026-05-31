@@ -206,6 +206,14 @@ AI **DILARANG** melewati langkah ini dengan alasan apapun.
 > Commit message dalam bahasa selain Indonesia dan push ke `master` tanpa izin eksplisit
 > adalah **pelanggaran serius** yang harus dihindari.
 
+> **PERINGATAN KERAS — OTONOMI GIT DILARANG:** AI **DILARANG KERAS** melakukan
+> `git commit`, `git push`, `git tag`, atau `gh release create` **tanpa instruksi
+> eksplisit dari pengguna di chat saat ini**. Instruksi dari history chat sebelumnya
+> **TIDAK SAH** — pengguna harus memberikan instruksi ulang di percakapan yang sedang
+> berlangsung. Jika pengguna hanya mengatakan "revisi" atau "perbaiki" tanpa menyebut
+> commit/push/tag, AI **HANYA** mengubah kode dan **TIDAK BOLEH** melakukan operasi Git
+> apapun. Melanggar aturan ini adalah **kesalahan fatal** yang harus dihindari.
+
 ### Bahasa Commit
 
 Semua commit message **WAJIB** ditulis dalam **Bahasa Indonesia** dengan format:
