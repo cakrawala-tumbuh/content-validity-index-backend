@@ -74,7 +74,7 @@ def generate_cvi_excel(result: CVIResult, expert_names: dict[str, str] | None = 
     # --- Baris 4+: Data item ---
     for row_idx, item in enumerate(result.items, start=4):
         ws.cell(row=row_idx, column=1, value=item.sequence_number).alignment = center
-        ws.cell(row=row_idx, column=2, value=item.domain or "-")
+        ws.cell(row=row_idx, column=2, value=item.domain_id or "-")
         ws.cell(row=row_idx, column=3, value=item.content)
         ws.cell(row=row_idx, column=4, value=item.n_relevant).alignment = center
         i_cvi_cell = ws.cell(row=row_idx, column=5, value=item.i_cvi)

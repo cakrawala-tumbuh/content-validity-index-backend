@@ -14,6 +14,9 @@ class Item(Base):
 
     Merepresentasikan satu butir/pernyataan dalam sebuah instrumen CVI
     yang akan dinilai relevansinya oleh para expert.
+
+    Setiap item dapat dikelompokkan ke dalam satu domain/dimensi yang
+    didefinisikan per instrumen melalui model Domain.
     """
 
     __tablename__ = "items"
@@ -39,10 +42,12 @@ class Item(Base):
         nullable=False,
         comment="Teks/pernyataan dari item ini",
     )
-    domain: Mapped[str | None] = mapped_column(
-        String(255),
+    domain_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("domains.id", ondelete="SET NULL"),
         nullable=True,
-        comment="Domain/dimensi opsional untuk pengelompokan item",
+        index=True,
+        comment="ID domain/dimensi tempat item ini dikelompokkan",
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()

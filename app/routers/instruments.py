@@ -8,10 +8,12 @@ from app.dependencies.auth import get_current_user, require_admin
 from app.models.user import User
 from app.schemas.common import MessageResponse
 from app.schemas.cvi import CVIResult
+from app.schemas.domain import DomainCreate, DomainResponse, DomainUpdate
 from app.schemas.expert_assignment import AssignmentCreate, AssignmentResponse
 from app.schemas.instrument import InstrumentCreate, InstrumentResponse, InstrumentUpdate
 from app.schemas.item import ItemBulkCreate, ItemCreate, ItemResponse, ItemUpdate
 from app.services.cvi_service import CVIService
+from app.services.domain_service import DomainService
 from app.services.expert_assignment_service import ExpertAssignmentService
 from app.services.instrument_service import InstrumentService
 from app.services.item_service import ItemService
@@ -422,6 +424,173 @@ async def delete_item(
         resource_id=item_id,
     )
     return MessageResponse(message=f"Item '{item_id}' berhasil dihapus.")
+
+
+# ────────────────────────────────────────────────────────────
+#  Domains
+# ────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/{instrument_id}/domains",
+    response_model=list[DomainResponse],
+    summary="Daftar domain instrumen",
+    description="Mengambil semua domain/dimensi yang didefinisikan dalam instrumen.",
+    responses={
+        401: {"description": "Token tidak valid."},
+        404: {"description": "Instrumen tidak ditemukan."},
+    },
+)
+async def list_domains(
+    instrument_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[DomainResponse]:
+    """Mengambil daftar domain dalam sebuah instrumen.
+
+    Args:
+        instrument_id: ID instrumen.
+        current_user: Pengguna yang sedang login.
+        db: AsyncSession database.
+
+    Returns:
+        Daftar domain dalam instrumen.
+    """
+    service = DomainService(db)
+    domains = await service.get_by_instrument(instrument_id)
+    return [DomainResponse.model_validate(d) for d in domains]
+
+
+@router.post(
+    "/{instrument_id}/domains",
+    response_model=DomainResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Tambah domain",
+    description="Menambahkan domain/dimensi baru ke instrumen. Hanya admin.",
+    responses={
+        403: {"description": "Akses ditolak."},
+        404: {"description": "Instrumen tidak ditemukan."},
+    },
+)
+async def create_domain(
+    instrument_id: str,
+    data: DomainCreate,
+    request: Request,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> DomainResponse:
+    """Menambahkan domain baru ke instrumen (admin only).
+
+    Args:
+        instrument_id: ID instrumen.
+        data: Data domain baru.
+        request: HTTP request.
+        admin: Admin yang menambahkan domain.
+        db: AsyncSession database.
+
+    Returns:
+        Domain yang baru dibuat.
+    """
+    service = DomainService(db)
+    domain = await service.create(instrument_id, data)
+    await log_activity(
+        db=db,
+        action="create_domain",
+        request=request,
+        user_id=admin.id,
+        resource_type="domain",
+        resource_id=domain.id,
+    )
+    return DomainResponse.model_validate(domain)
+
+
+@router.patch(
+    "/{instrument_id}/domains/{domain_id}",
+    response_model=DomainResponse,
+    summary="Perbarui domain",
+    description="Memperbarui nama domain/dimensi. Hanya admin.",
+    responses={
+        403: {"description": "Akses ditolak."},
+        404: {"description": "Domain atau instrumen tidak ditemukan."},
+    },
+)
+async def update_domain(
+    instrument_id: str,
+    domain_id: str,
+    data: DomainUpdate,
+    request: Request,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> DomainResponse:
+    """Memperbarui domain dalam instrumen (admin only).
+
+    Args:
+        instrument_id: ID instrumen.
+        domain_id: ID domain yang akan diperbarui.
+        data: Data pembaruan domain.
+        request: HTTP request.
+        admin: Admin yang memperbarui.
+        db: AsyncSession database.
+
+    Returns:
+        Domain yang sudah diperbarui.
+    """
+    service = DomainService(db)
+    updated = await service.update(domain_id, instrument_id, data)
+    await log_activity(
+        db=db,
+        action="update_domain",
+        request=request,
+        user_id=admin.id,
+        resource_type="domain",
+        resource_id=domain_id,
+    )
+    return DomainResponse.model_validate(updated)
+
+
+@router.delete(
+    "/{instrument_id}/domains/{domain_id}",
+    response_model=MessageResponse,
+    summary="Hapus domain",
+    description=(
+        "Menghapus domain dari instrumen. "
+        "Item yang terkait akan kehilangan referensi domain. Hanya admin."
+    ),
+    responses={
+        403: {"description": "Akses ditolak."},
+        404: {"description": "Domain atau instrumen tidak ditemukan."},
+    },
+)
+async def delete_domain(
+    instrument_id: str,
+    domain_id: str,
+    request: Request,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponse:
+    """Menghapus domain dari instrumen (admin only).
+
+    Args:
+        instrument_id: ID instrumen.
+        domain_id: ID domain yang akan dihapus.
+        request: HTTP request.
+        admin: Admin yang menghapus.
+        db: AsyncSession database.
+
+    Returns:
+        Pesan konfirmasi.
+    """
+    service = DomainService(db)
+    await service.delete(domain_id, instrument_id)
+    await log_activity(
+        db=db,
+        action="delete_domain",
+        request=request,
+        user_id=admin.id,
+        resource_type="domain",
+        resource_id=domain_id,
+    )
+    return MessageResponse(message=f"Domain '{domain_id}' berhasil dihapus.")
 
 
 # ────────────────────────────────────────────────────────────

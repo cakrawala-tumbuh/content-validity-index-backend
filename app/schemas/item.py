@@ -11,7 +11,7 @@ class ItemCreate(BaseModel):
     Attributes:
         sequence_number: Nomor urut item dalam instrumen.
         content: Teks/pernyataan dari item.
-        domain: Domain/dimensi pengelompokan item (opsional).
+        domain_id: ID domain/dimensi pengelompokan item (opsional).
     """
 
     model_config = ConfigDict(
@@ -19,14 +19,14 @@ class ItemCreate(BaseModel):
             "example": {
                 "sequence_number": 1,
                 "content": "Remaja mampu mengidentifikasi kebutuhan informasi kesehatannya.",
-                "domain": "Literasi Kesehatan",
+                "domain_id": "d4e5f6a7-b8c9-0123-defa-234567890123",
             }
         }
     )
 
     sequence_number: int = Field(ge=1)
     content: str = Field(min_length=1)
-    domain: str | None = Field(default=None, max_length=255)
+    domain_id: str | None = Field(default=None, max_length=36)
 
 
 class ItemBulkCreate(BaseModel):
@@ -43,12 +43,12 @@ class ItemBulkCreate(BaseModel):
                     {
                         "sequence_number": 1,
                         "content": "Item pertama.",
-                        "domain": "Domain A",
+                        "domain_id": "d4e5f6a7-b8c9-0123-defa-234567890123",
                     },
                     {
                         "sequence_number": 2,
                         "content": "Item kedua.",
-                        "domain": "Domain A",
+                        "domain_id": "d4e5f6a7-b8c9-0123-defa-234567890123",
                     },
                 ]
             }
@@ -64,7 +64,7 @@ class ItemUpdate(BaseModel):
     Attributes:
         sequence_number: Nomor urut baru (opsional).
         content: Teks baru (opsional).
-        domain: Domain baru (opsional).
+        domain_id: ID domain baru (opsional, None untuk menghapus).
     """
 
     model_config = ConfigDict(
@@ -77,7 +77,7 @@ class ItemUpdate(BaseModel):
 
     sequence_number: int | None = Field(default=None, ge=1)
     content: str | None = Field(default=None, min_length=1)
-    domain: str | None = Field(default=None, max_length=255)
+    domain_id: str | None = Field(default=None, max_length=36)
 
 
 class ItemResponse(BaseModel):
@@ -88,7 +88,7 @@ class ItemResponse(BaseModel):
         instrument_id: ID instrumen yang memiliki item ini.
         sequence_number: Nomor urut item.
         content: Teks/pernyataan item.
-        domain: Domain/dimensi item.
+        domain_id: ID domain/dimensi item.
         created_at: Waktu pembuatan.
         updated_at: Waktu terakhir diperbarui.
     """
@@ -101,9 +101,9 @@ class ItemResponse(BaseModel):
                 "instrument_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
                 "sequence_number": 1,
                 "content": "Remaja mampu mengidentifikasi kebutuhan informasi kesehatannya.",
-                "domain": "Literasi Kesehatan",
-                "created_at": "2026-04-01T08:00:00",
-                "updated_at": "2026-04-01T08:00:00",
+                "domain_id": "d4e5f6a7-b8c9-0123-defa-234567890123",
+                "created_at": "2026-05-01T08:00:00",
+                "updated_at": "2026-05-01T08:00:00",
             }
         },
     )
@@ -112,6 +112,6 @@ class ItemResponse(BaseModel):
     instrument_id: str
     sequence_number: int
     content: str
-    domain: str | None
+    domain_id: str | None
     created_at: datetime
     updated_at: datetime

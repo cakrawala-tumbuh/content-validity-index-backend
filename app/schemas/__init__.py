@@ -3,6 +3,7 @@
 from app.schemas.activity_log import ActivityLogResponse
 from app.schemas.common import MessageResponse
 from app.schemas.cvi import CVIResult, ItemCVIResult
+from app.schemas.domain import DomainCreate, DomainResponse, DomainUpdate
 from app.schemas.expert_assignment import AssignmentCreate, AssignmentResponse
 from app.schemas.instrument import InstrumentCreate, InstrumentResponse, InstrumentUpdate
 from app.schemas.item import ItemBulkCreate, ItemCreate, ItemResponse, ItemUpdate
@@ -20,6 +21,9 @@ __all__ = [
     "ItemBulkCreate",
     "ItemUpdate",
     "ItemResponse",
+    "DomainCreate",
+    "DomainUpdate",
+    "DomainResponse",
     "AssignmentCreate",
     "AssignmentResponse",
     "RatingBulkCreate",

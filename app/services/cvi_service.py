@@ -183,7 +183,7 @@ class CVIService:
                     item_id=item.id,
                     sequence_number=item.sequence_number,
                     content=item.content,
-                    domain=item.domain,
+                    domain_id=item.domain_id,
                     n_experts=n_rated,
                     n_relevant=n_relevant,
                     i_cvi=round(i_cvi_val, 4),
