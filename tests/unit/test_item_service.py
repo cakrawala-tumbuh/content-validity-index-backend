@@ -184,9 +184,7 @@ class TestItemServiceCreate:
             await service.create("instr-1", ItemCreate(sequence_number=1, content="Item A"))
             await service.create("instr-1", ItemCreate(sequence_number=2, content="Item B"))
 
-        uuid_pattern = re.compile(
-            r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-        )
+        uuid_pattern = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
         assert uuid_pattern.match(captured[0].id)
         assert uuid_pattern.match(captured[1].id)
         assert captured[0].id != captured[1].id
@@ -291,9 +289,7 @@ class TestItemServiceUpdate:
 
             service = ItemService(mock_db)
             with pytest.raises(HTTPException) as exc_info:
-                await service.update(
-                    "nonexistent", "instr-1", ItemUpdate(content="Baru")
-                )
+                await service.update("nonexistent", "instr-1", ItemUpdate(content="Baru"))
 
         assert exc_info.value.status_code == 404
 

@@ -321,9 +321,7 @@ class TestExpertAssignmentServiceCreate:
                 "instr-1", AssignmentCreate(user_id="expert-1"), assigned_by="admin-1"
             )
 
-        uuid_pattern = re.compile(
-            r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-        )
+        uuid_pattern = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
         assert len(captured) == 1
         assert uuid_pattern.match(captured[0].id)
 

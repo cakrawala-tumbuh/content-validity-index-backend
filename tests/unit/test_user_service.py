@@ -61,7 +61,7 @@ class TestUserServiceSyncFromClaims:
                 "name": "Nama Baru",
                 "groups": [],
             }
-            result = await service.sync_from_claims(claims, "admin-group", "expert-group")
+            await service.sync_from_claims(claims, "admin-group", "expert-group")
 
         mock_repo.update.assert_called_once()
         mock_repo.create.assert_not_called()

@@ -92,9 +92,7 @@ class TestDomainServiceCreate:
             await service.create("instr-1", DomainCreate(name="Dom A"))
             await service.create("instr-1", DomainCreate(name="Dom B"))
 
-        uuid_pattern = re.compile(
-            r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-        )
+        uuid_pattern = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
         id_a = captured[0].id
         id_b = captured[1].id
         assert uuid_pattern.match(id_a), f"ID '{id_a}' bukan UUID valid"
