@@ -72,7 +72,7 @@ def run_migrations_online() -> None:
     import concurrent.futures
 
     try:
-        loop = asyncio.get_running_loop()
+        asyncio.get_running_loop()
     except RuntimeError:
         # Tidak ada event loop yang berjalan (CLI mode)
         asyncio.run(run_async_migrations())
