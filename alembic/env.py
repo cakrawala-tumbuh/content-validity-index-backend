@@ -63,8 +63,25 @@ async def run_async_migrations() -> None:
 
 
 def run_migrations_online() -> None:
-    """Entry point untuk menjalankan migrasi online (async)."""
-    asyncio.run(run_async_migrations())
+    """Entry point untuk menjalankan migrasi online (async).
+
+    Menangani dua kasus:
+    1. Dipanggil dari CLI — tidak ada event loop yang berjalan.
+    2. Dipanggil dari dalam lifespan FastAPI — sudah ada event loop uvicorn.
+    """
+    import concurrent.futures
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # Tidak ada event loop yang berjalan (CLI mode)
+        asyncio.run(run_async_migrations())
+    else:
+        # Sudah ada event loop (dipanggil dari FastAPI lifespan),
+        # jalankan di thread terpisah dengan event loop baru
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(asyncio.run, run_async_migrations())
+            future.result()
 
 
 if context.is_offline_mode():
