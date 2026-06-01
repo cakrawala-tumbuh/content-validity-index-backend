@@ -2,6 +2,7 @@ VENV_DIR := .venv
 VENV_PYTHON := $(VENV_DIR)/bin/python
 VENV_PIP := $(VENV_DIR)/bin/pip
 
+.DEFAULT_GOAL := ci
 .PHONY: install lint test ci clean
 
 # Buat venv dan install dependensi (setara dengan setup di lint.yml)
