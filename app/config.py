@@ -24,6 +24,8 @@ class Settings(BaseSettings):
 
     # Authentik OIDC
     AUTHENTIK_ISSUER_URL: str = "https://authentik.example.com/application/o/cvi/"
+    AUTHENTIK_CLIENT_ID: str = ""
+    AUTHENTIK_CLIENT_SECRET: str = ""
     AUTHENTIK_ADMIN_GROUP: str = "cvi-admin"
     AUTHENTIK_EXPERT_GROUP: str = "cvi-expert"
 

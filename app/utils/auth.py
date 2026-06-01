@@ -14,6 +14,11 @@ _jwks_last_fetched: float = 0.0
 _jwks_lock = asyncio.Lock()
 JWKS_CACHE_TTL_SECONDS = 300  # 5 menit
 
+# Cache URL endpoint introspeksi Authentik
+_introspection_endpoint_cache: str = ""
+_introspection_endpoint_last_fetched: float = 0.0
+_introspection_endpoint_lock = asyncio.Lock()
+
 
 async def _fetch_jwks(issuer_url: str) -> dict[str, Any]:
     """Mengambil JWKS dari endpoint Authentik.
@@ -67,6 +72,94 @@ async def get_jwks(issuer_url: str) -> dict[str, Any]:
                 _jwks_last_fetched = time.monotonic()
 
     return _jwks_cache
+
+
+async def _get_introspection_endpoint(issuer_url: str) -> str:
+    """Mengambil dan meng-cache URL endpoint introspeksi dari OIDC discovery document.
+
+    Endpoint introspeksi digunakan untuk memverifikasi apakah token masih aktif
+    di sisi Authentik — diperlukan untuk mendeteksi logout Authentik.
+
+    Args:
+        issuer_url: URL issuer Authentik (OIDC well-known endpoint).
+
+    Returns:
+        URL string endpoint introspeksi Authentik.
+
+    Raises:
+        HTTPException: Jika gagal menghubungi Authentik (503).
+    """
+    global _introspection_endpoint_cache, _introspection_endpoint_last_fetched
+
+    now = time.monotonic()
+    if (
+        now - _introspection_endpoint_last_fetched > JWKS_CACHE_TTL_SECONDS
+        or not _introspection_endpoint_cache
+    ):
+        async with _introspection_endpoint_lock:
+            if (
+                now - _introspection_endpoint_last_fetched > JWKS_CACHE_TTL_SECONDS
+                or not _introspection_endpoint_cache
+            ):
+                well_known_url = issuer_url.rstrip("/") + "/.well-known/openid-configuration"
+                try:
+                    async with httpx.AsyncClient(timeout=10.0) as client:
+                        resp = await client.get(well_known_url)
+                        resp.raise_for_status()
+                        _introspection_endpoint_cache = resp.json()["introspection_endpoint"]
+                        _introspection_endpoint_last_fetched = time.monotonic()
+                except httpx.HTTPError as exc:
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail="Tidak dapat menghubungi identity provider.",
+                    ) from exc
+
+    return _introspection_endpoint_cache
+
+
+async def introspect_token(
+    token: str,
+    issuer_url: str,
+    client_id: str,
+    client_secret: str,
+) -> None:
+    """Memverifikasi status aktif token melalui endpoint introspeksi Authentik (RFC 7662).
+
+    Dipanggil setelah validasi lokal JWT untuk mendeteksi apakah token telah dicabut
+    di Authentik — misalnya karena user logout dari Authentik di tab/perangkat lain.
+
+    Args:
+        token: JWT access token yang akan diintrospeksi.
+        issuer_url: URL issuer Authentik.
+        client_id: Client ID untuk autentikasi ke endpoint introspeksi.
+        client_secret: Client secret untuk autentikasi ke endpoint introspeksi.
+
+    Raises:
+        HTTPException: 401 jika Authentik menyatakan token tidak aktif.
+        HTTPException: 503 jika endpoint introspeksi tidak dapat dihubungi.
+    """
+    introspection_url = await _get_introspection_endpoint(issuer_url)
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                introspection_url,
+                data={"token": token},
+                auth=(client_id, client_secret),
+            )
+            resp.raise_for_status()
+            data: dict[str, Any] = resp.json()
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Tidak dapat menghubungi identity provider.",
+        ) from exc
+
+    if not data.get("active", False):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token tidak aktif. Sesi Anda telah berakhir, silakan login kembali.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
 async def verify_token(token: str, issuer_url: str) -> dict[str, Any]:

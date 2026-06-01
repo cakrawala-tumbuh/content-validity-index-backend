@@ -8,7 +8,7 @@ from app.config import get_settings
 from app.database import get_db
 from app.models.user import User
 from app.services.user_service import UserService
-from app.utils.auth import verify_token
+from app.utils.auth import introspect_token, verify_token
 
 _security = HTTPBearer()
 
@@ -34,6 +34,12 @@ async def get_current_user(
     """
     settings = get_settings()
     claims = await verify_token(credentials.credentials, settings.AUTHENTIK_ISSUER_URL)
+    await introspect_token(
+        credentials.credentials,
+        settings.AUTHENTIK_ISSUER_URL,
+        settings.AUTHENTIK_CLIENT_ID,
+        settings.AUTHENTIK_CLIENT_SECRET,
+    )
     user_service = UserService(db)
     user = await user_service.sync_from_claims(
         claims=claims,
