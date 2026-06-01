@@ -88,10 +88,8 @@ class TestIntrospectToken:
     async def test_token_aktif_tidak_raise(self) -> None:
         """introspect_token tidak boleh raise exception jika Authentik menyatakan token aktif."""
         with (
-            patch(
-                "app.utils.auth._get_introspection_endpoint", new_callable=AsyncMock
-            ) as mock_ep,
-            patch("app.utils.auth.httpx.AsyncClient") as MockClient,
+            patch("app.utils.auth._get_introspection_endpoint", new_callable=AsyncMock) as mock_ep,
+            patch("app.utils.auth.httpx.AsyncClient") as mock_client_cls,
         ):
             mock_ep.return_value = "https://auth.example.com/introspect"
             mock_resp = MagicMock()
@@ -99,8 +97,8 @@ class TestIntrospectToken:
             mock_resp.raise_for_status.return_value = None
             mock_instance = AsyncMock()
             mock_instance.post = AsyncMock(return_value=mock_resp)
-            MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
-            MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
+            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=None)
 
             from app.utils.auth import introspect_token
 
@@ -112,10 +110,8 @@ class TestIntrospectToken:
     async def test_token_tidak_aktif_raise_401(self) -> None:
         """introspect_token harus raise 401 jika Authentik menyatakan token tidak aktif."""
         with (
-            patch(
-                "app.utils.auth._get_introspection_endpoint", new_callable=AsyncMock
-            ) as mock_ep,
-            patch("app.utils.auth.httpx.AsyncClient") as MockClient,
+            patch("app.utils.auth._get_introspection_endpoint", new_callable=AsyncMock) as mock_ep,
+            patch("app.utils.auth.httpx.AsyncClient") as mock_client_cls,
         ):
             mock_ep.return_value = "https://auth.example.com/introspect"
             mock_resp = MagicMock()
@@ -123,8 +119,8 @@ class TestIntrospectToken:
             mock_resp.raise_for_status.return_value = None
             mock_instance = AsyncMock()
             mock_instance.post = AsyncMock(return_value=mock_resp)
-            MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
-            MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
+            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=None)
 
             from app.utils.auth import introspect_token
 
@@ -140,18 +136,16 @@ class TestIntrospectToken:
         import httpx as httpx_module
 
         with (
-            patch(
-                "app.utils.auth._get_introspection_endpoint", new_callable=AsyncMock
-            ) as mock_ep,
-            patch("app.utils.auth.httpx.AsyncClient") as MockClient,
+            patch("app.utils.auth._get_introspection_endpoint", new_callable=AsyncMock) as mock_ep,
+            patch("app.utils.auth.httpx.AsyncClient") as mock_client_cls,
         ):
             mock_ep.return_value = "https://auth.example.com/introspect"
             mock_instance = AsyncMock()
             mock_instance.post = AsyncMock(
                 side_effect=httpx_module.ConnectError("Connection refused")
             )
-            MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
-            MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
+            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=None)
 
             from app.utils.auth import introspect_token
 
@@ -185,10 +179,8 @@ class TestSkenarioBugLogoutAuthentik:
         with (
             patch("app.utils.auth.get_jwks", new_callable=AsyncMock) as mock_jwks,
             patch("app.utils.auth.jwt.decode") as mock_decode,
-            patch(
-                "app.utils.auth._get_introspection_endpoint", new_callable=AsyncMock
-            ) as mock_ep,
-            patch("app.utils.auth.httpx.AsyncClient") as MockClient,
+            patch("app.utils.auth._get_introspection_endpoint", new_callable=AsyncMock) as mock_ep,
+            patch("app.utils.auth.httpx.AsyncClient") as mock_client_cls,
         ):
             # Token valid secara kriptografi (belum expired, signature OK)
             mock_jwks.return_value = {"keys": []}
@@ -201,8 +193,8 @@ class TestSkenarioBugLogoutAuthentik:
             mock_resp.raise_for_status.return_value = None
             mock_instance = AsyncMock()
             mock_instance.post = AsyncMock(return_value=mock_resp)
-            MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
-            MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
+            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=None)
 
             from app.utils.auth import introspect_token, verify_token
 
@@ -228,10 +220,8 @@ class TestSkenarioBugLogoutAuthentik:
         with (
             patch("app.utils.auth.get_jwks", new_callable=AsyncMock) as mock_jwks,
             patch("app.utils.auth.jwt.decode") as mock_decode,
-            patch(
-                "app.utils.auth._get_introspection_endpoint", new_callable=AsyncMock
-            ) as mock_ep,
-            patch("app.utils.auth.httpx.AsyncClient") as MockClient,
+            patch("app.utils.auth._get_introspection_endpoint", new_callable=AsyncMock) as mock_ep,
+            patch("app.utils.auth.httpx.AsyncClient") as mock_client_cls,
         ):
             mock_jwks.return_value = {"keys": []}
             mock_decode.return_value = mock_claims
@@ -242,8 +232,8 @@ class TestSkenarioBugLogoutAuthentik:
             mock_resp.raise_for_status.return_value = None
             mock_instance = AsyncMock()
             mock_instance.post = AsyncMock(return_value=mock_resp)
-            MockClient.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
-            MockClient.return_value.__aexit__ = AsyncMock(return_value=None)
+            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=None)
 
             from app.utils.auth import introspect_token, verify_token
 
