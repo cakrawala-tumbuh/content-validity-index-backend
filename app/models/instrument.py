@@ -38,7 +38,7 @@ class Instrument(Base):
         comment="Status: draft | active | closed",
     )
     created_by: Mapped[str] = mapped_column(
-        String(36),
+        String(255),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=False,
     )

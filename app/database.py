@@ -15,7 +15,6 @@ _settings = get_settings()
 engine = create_async_engine(
     _settings.DATABASE_URL,
     echo=_settings.APP_ENV == "development",
-    connect_args={"check_same_thread": False},
 )
 
 AsyncSessionFactory: async_sessionmaker[AsyncSession] = async_sessionmaker(

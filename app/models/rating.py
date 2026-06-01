@@ -46,7 +46,7 @@ class Rating(Base):
         index=True,
     )
     user_id: Mapped[str] = mapped_column(
-        String(36),
+        String(255),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         comment="Denormalisasi untuk efisiensi query",
