@@ -63,8 +63,8 @@ class TestVerifyToken:
             assert exc_info.value.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_jwks_fetch_gagal_raise_503(self) -> None:
-        """verify_token harus raise HTTPException 503 jika JWKS tidak bisa diambil."""
+    async def test_jwks_fetch_gagal_tanpa_cache_raise_503(self) -> None:
+        """get_jwks harus raise 503 jika JWKS tidak bisa diambil dan tidak ada cache lama."""
         from fastapi import HTTPException
 
         with (
@@ -79,6 +79,30 @@ class TestVerifyToken:
             with pytest.raises(HTTPException) as exc_info:
                 await get_jwks("https://auth.example.com")
             assert exc_info.value.status_code == 503
+
+    @pytest.mark.asyncio
+    async def test_jwks_fetch_gagal_dengan_cache_lama_kembalikan_cache(self) -> None:
+        """get_jwks harus kembalikan cache lama jika refresh gagal dan ada data cache.
+
+        JWKS jarang berubah — menggunakan cache lama lebih baik daripada menolak
+        semua request saat Authentik sedang restart/tidak tersedia sementara.
+        """
+        from fastapi import HTTPException
+
+        stale_cache = {"keys": [{"kid": "old-key", "kty": "RSA"}]}
+
+        with (
+            patch("app.utils.auth._fetch_jwks", new_callable=AsyncMock) as mock_fetch,
+            patch("app.utils.auth._jwks_last_fetched", 0.0),
+            patch("app.utils.auth._jwks_cache", stale_cache),
+        ):
+            mock_fetch.side_effect = HTTPException(status_code=503, detail="tidak bisa connect")
+
+            from app.utils.auth import get_jwks
+
+            # Harus berhasil dengan cache lama, bukan raise exception
+            result = await get_jwks("https://auth.example.com")
+            assert result == stale_cache
 
 
 class TestIntrospectToken:
@@ -154,6 +178,26 @@ class TestIntrospectToken:
             from app.utils.auth import introspect_token
 
             # Tidak boleh raise — hanya log warning dan lanjut
+            await introspect_token("some.token", "https://auth.example.com", "client_id", "secret")
+
+    @pytest.mark.asyncio
+    async def test_introspeksi_oidc_discovery_gagal_tidak_raise(self) -> None:
+        """introspect_token TIDAK BOLEH raise jika OIDC discovery endpoint tidak tersedia.
+
+        Ini terjadi setiap 5 menit saat cache introspection endpoint habis dan
+        Authentik sedang tidak tersedia sementara (restart, slow response, dll).
+        Kegagalan ini harus non-fatal — JWT verification tetap memproteksi endpoint.
+        """
+        with (
+            patch("app.utils.auth._get_introspection_endpoint", new_callable=AsyncMock) as mock_ep,
+        ):
+            mock_ep.side_effect = HTTPException(
+                status_code=503, detail="Tidak dapat menghubungi identity provider."
+            )
+
+            from app.utils.auth import introspect_token
+
+            # Tidak boleh raise — OIDC discovery gagal bukan berarti token tidak valid
             await introspect_token("some.token", "https://auth.example.com", "client_id", "secret")
 
     @pytest.mark.asyncio

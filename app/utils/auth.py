@@ -58,11 +58,18 @@ async def _fetch_jwks(issuer_url: str) -> dict[str, Any]:
 async def get_jwks(issuer_url: str) -> dict[str, Any]:
     """Mengembalikan JWKS yang di-cache, melakukan refresh jika sudah kedaluwarsa.
 
+    Jika refresh gagal (Authentik tidak tersedia) dan ada cache lama yang valid,
+    cache lama digunakan sebagai fallback. JWKS jarang berubah sehingga data
+    lama masih aman dipakai sementara.
+
     Args:
         issuer_url: URL issuer Authentik.
 
     Returns:
         Dict JWKS yang berisi kunci-kunci publik.
+
+    Raises:
+        HTTPException: 503 jika refresh gagal DAN tidak ada cache lama.
     """
     global _jwks_cache, _jwks_last_fetched
 
@@ -71,8 +78,17 @@ async def get_jwks(issuer_url: str) -> dict[str, Any]:
         async with _jwks_lock:
             # Double-check setelah acquire lock
             if now - _jwks_last_fetched > JWKS_CACHE_TTL_SECONDS or not _jwks_cache:
-                _jwks_cache = await _fetch_jwks(issuer_url)
-                _jwks_last_fetched = time.monotonic()
+                try:
+                    _jwks_cache = await _fetch_jwks(issuer_url)
+                    _jwks_last_fetched = time.monotonic()
+                except HTTPException:
+                    if not _jwks_cache:
+                        raise  # Tidak ada cache lama, harus gagal
+                    # Gunakan cache lama — JWKS jarang dirotasi, JWT tetap dapat diverifikasi
+                    logger.warning(
+                        "Gagal memperbarui JWKS cache (Authentik tidak tersedia). "
+                        "Menggunakan data cache lama."
+                    )
 
     return _jwks_cache
 
@@ -131,9 +147,9 @@ async def introspect_token(
     Dipanggil setelah validasi lokal JWT untuk mendeteksi apakah token telah dicabut
     di Authentik — misalnya karena user logout dari Authentik di tab/perangkat lain.
 
-    Kegagalan koneksi atau error HTTP dari endpoint introspeksi (misal: credentials
-    salah, endpoint tidak bisa dihubungi) hanya dicatat sebagai warning dan tidak
-    memblokir request. Validasi tanda tangan JWT dan expiry sudah dilakukan di
+    Semua kegagalan yang bersifat infrastruktur (koneksi gagal, timeout, credentials
+    salah, endpoint OIDC discovery tidak tersedia) hanya dicatat sebagai warning dan
+    tidak memblokir request. Validasi tanda tangan JWT dan expiry sudah dilakukan di
     ``verify_token`` sehingga keamanan tetap terjaga.
 
     Args:
@@ -145,7 +161,17 @@ async def introspect_token(
     Raises:
         HTTPException: 401 jika Authentik secara eksplisit menyatakan token tidak aktif.
     """
-    introspection_url = await _get_introspection_endpoint(issuer_url)
+    try:
+        introspection_url = await _get_introspection_endpoint(issuer_url)
+    except HTTPException:
+        # OIDC discovery gagal (misal: Authentik sedang restart atau cache habis).
+        # Tidak fatal — JWT verification sudah cukup untuk memproteksi endpoint.
+        logger.warning(
+            "Gagal mendapatkan URL introspeksi (OIDC discovery tidak tersedia). "
+            "Melanjutkan hanya dengan JWT."
+        )
+        return
+
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.post(
@@ -156,10 +182,8 @@ async def introspect_token(
             resp.raise_for_status()
             data: dict[str, Any] = resp.json()
     except httpx.HTTPError as exc:
-        # Jika endpoint introspeksi tidak bisa dihubungi atau mengembalikan error HTTP
-        # (misalnya credentials salah → 401 dari Authentik), catat warning dan lanjutkan.
+        # Koneksi gagal atau error HTTP (misal: credentials salah → 401 dari Authentik).
         # JWT verification di verify_token() sudah memvalidasi tanda tangan dan expiry.
-        # Introspeksi hanya best-effort untuk mendeteksi logout Authentik.
         logger.warning(
             "Introspeksi token gagal (%s: %s). Melanjutkan hanya dengan JWT.",
             type(exc).__name__,
