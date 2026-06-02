@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.config import get_settings
 
@@ -76,6 +77,15 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+# Proxy headers — hormati X-Forwarded-Proto/For dari reverse proxy (Traefik).
+# Ditambahkan terakhir agar menjadi lapisan terluar: skema request (https) dikoreksi
+# sebelum routing sehingga redirect trailing-slash memakai https dan tidak menstrip
+# header Authorization saat di-follow oleh klien.
+app.add_middleware(
+    ProxyHeadersMiddleware,
+    trusted_hosts=settings.FORWARDED_ALLOW_IPS,
 )
 
 

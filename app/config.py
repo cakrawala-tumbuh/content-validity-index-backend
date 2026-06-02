@@ -35,6 +35,13 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:3000"]
 
+    # Reverse proxy — daftar IP yang dipercaya mengirim header X-Forwarded-*.
+    # Di belakang Traefik (TLS diterminasi di proxy), backend hanya menerima HTTP
+    # sehingga perlu menghormati X-Forwarded-Proto agar redirect memakai skema https
+    # dan tidak menstrip header Authorization saat di-follow. Default "*" aman karena
+    # backend hanya dapat dijangkau melalui reverse proxy pada jaringan internal.
+    FORWARDED_ALLOW_IPS: str = "*"
+
     def model_post_init(self, __context: object) -> None:
         """Parse CORS_ORIGINS jika dikirim sebagai JSON string."""
         if isinstance(self.CORS_ORIGINS, str):
