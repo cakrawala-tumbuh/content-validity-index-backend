@@ -72,6 +72,9 @@ class DomainService:
             id=str(uuid.uuid4()),
             instrument_id=instrument_id,
             name=data.name,
+            construct_definition=data.construct_definition,
+            behavioral_indicator_example=data.behavioral_indicator_example,
+            theory_reference=data.theory_reference,
         )
         return await self.repo.create(domain)
 
@@ -90,8 +93,17 @@ class DomainService:
             HTTPException: Jika domain tidak ditemukan (404).
         """
         domain = await self.get_by_id(domain_id, instrument_id)
+        fields_set = data.model_fields_set
         if data.name is not None:
             domain.name = data.name
+        # Field kisi-kisi (D/E/F) boleh di-set null secara eksplisit untuk mengosongkan,
+        # sehingga hanya diperbarui jika benar-benar disertakan dalam request.
+        if "construct_definition" in fields_set:
+            domain.construct_definition = data.construct_definition
+        if "behavioral_indicator_example" in fields_set:
+            domain.behavioral_indicator_example = data.behavioral_indicator_example
+        if "theory_reference" in fields_set:
+            domain.theory_reference = data.theory_reference
         return await self.repo.update(domain)
 
     async def delete(self, domain_id: str, instrument_id: str) -> None:

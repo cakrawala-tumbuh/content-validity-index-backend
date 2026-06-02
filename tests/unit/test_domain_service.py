@@ -67,6 +67,68 @@ class TestDomainServiceCreate:
         assert saved.name == "Dimensi Afektif"
 
     @pytest.mark.asyncio
+    async def test_create_menyimpan_field_kisi_kisi_konstruk(self) -> None:
+        """create harus menyimpan kolom D/E/F (kisi-kisi konstruk) ke model."""
+        mock_db = AsyncMock()
+        captured: list = []
+
+        async def capture_create(domain: object) -> object:
+            """Menangkap argumen yang diteruskan ke repo.create."""
+            captured.append(domain)
+            return domain
+
+        mock_repo = AsyncMock()
+        mock_repo.create.side_effect = capture_create
+
+        with patch(
+            "app.services.domain_service.DomainRepository",
+            return_value=mock_repo,
+        ):
+            from app.services.domain_service import DomainService
+
+            service = DomainService(mock_db)
+            data = DomainCreate(
+                name="Stability of Change",
+                construct_definition="Sejauh mana kebijakan tetap stabil.",
+                behavioral_indicator_example="Frekuensi perubahan kebijakan.",
+                theory_reference="Rafferty & Griffin (2006)",
+            )
+            await service.create("instr-1", data)
+
+        saved = captured[0]
+        assert saved.construct_definition == "Sejauh mana kebijakan tetap stabil."
+        assert saved.behavioral_indicator_example == "Frekuensi perubahan kebijakan."
+        assert saved.theory_reference == "Rafferty & Griffin (2006)"
+
+    @pytest.mark.asyncio
+    async def test_create_tanpa_field_kisi_kisi_default_none(self) -> None:
+        """create tanpa kolom D/E/F harus menyimpan nilai None pada model."""
+        mock_db = AsyncMock()
+        captured: list = []
+
+        async def capture_create(domain: object) -> object:
+            """Menangkap argumen yang diteruskan ke repo.create."""
+            captured.append(domain)
+            return domain
+
+        mock_repo = AsyncMock()
+        mock_repo.create.side_effect = capture_create
+
+        with patch(
+            "app.services.domain_service.DomainRepository",
+            return_value=mock_repo,
+        ):
+            from app.services.domain_service import DomainService
+
+            service = DomainService(mock_db)
+            await service.create("instr-1", DomainCreate(name="Tanpa Kisi-Kisi"))
+
+        saved = captured[0]
+        assert saved.construct_definition is None
+        assert saved.behavioral_indicator_example is None
+        assert saved.theory_reference is None
+
+    @pytest.mark.asyncio
     async def test_create_menghasilkan_id_unik(self) -> None:
         """create harus meng-generate UUID sebagai id domain."""
         import re
@@ -274,6 +336,82 @@ class TestDomainServiceUpdate:
             await service.update("dom-1", "instr-1", DomainUpdate(name=None))
 
         assert mock_domain.name == "Nama Tetap"
+
+    @pytest.mark.asyncio
+    async def test_update_memperbarui_field_kisi_kisi_konstruk(self) -> None:
+        """update harus memperbarui kolom D/E/F bila disertakan dalam request."""
+        mock_db = AsyncMock()
+        mock_domain = MagicMock()
+        mock_domain.id = "dom-1"
+        mock_domain.instrument_id = "instr-1"
+        mock_domain.name = "Dimensi"
+
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_domain
+        mock_repo.update.return_value = mock_domain
+
+        with patch("app.services.domain_service.DomainRepository", return_value=mock_repo):
+            from app.services.domain_service import DomainService
+
+            service = DomainService(mock_db)
+            data = DomainUpdate(
+                construct_definition="Definisi baru.",
+                behavioral_indicator_example="Indikator baru.",
+                theory_reference="Teori baru (2026)",
+            )
+            await service.update("dom-1", "instr-1", data)
+
+        assert mock_domain.construct_definition == "Definisi baru."
+        assert mock_domain.behavioral_indicator_example == "Indikator baru."
+        assert mock_domain.theory_reference == "Teori baru (2026)"
+
+    @pytest.mark.asyncio
+    async def test_update_field_kisi_kisi_tidak_disertakan_tidak_berubah(self) -> None:
+        """update tanpa menyertakan kolom D/E/F tidak boleh mengubah nilai lama."""
+        mock_db = AsyncMock()
+        mock_domain = MagicMock()
+        mock_domain.id = "dom-1"
+        mock_domain.instrument_id = "instr-1"
+        mock_domain.name = "Dimensi"
+        mock_domain.construct_definition = "Definisi asli."
+        mock_domain.behavioral_indicator_example = "Indikator asli."
+        mock_domain.theory_reference = "Teori asli."
+
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_domain
+        mock_repo.update.return_value = mock_domain
+
+        with patch("app.services.domain_service.DomainRepository", return_value=mock_repo):
+            from app.services.domain_service import DomainService
+
+            service = DomainService(mock_db)
+            await service.update("dom-1", "instr-1", DomainUpdate(name="Nama Baru"))
+
+        assert mock_domain.construct_definition == "Definisi asli."
+        assert mock_domain.behavioral_indicator_example == "Indikator asli."
+        assert mock_domain.theory_reference == "Teori asli."
+
+    @pytest.mark.asyncio
+    async def test_update_field_kisi_kisi_null_eksplisit_mengosongkan(self) -> None:
+        """update dengan nilai null eksplisit harus mengosongkan kolom D/E/F."""
+        mock_db = AsyncMock()
+        mock_domain = MagicMock()
+        mock_domain.id = "dom-1"
+        mock_domain.instrument_id = "instr-1"
+        mock_domain.name = "Dimensi"
+        mock_domain.construct_definition = "Definisi asli."
+
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_domain
+        mock_repo.update.return_value = mock_domain
+
+        with patch("app.services.domain_service.DomainRepository", return_value=mock_repo):
+            from app.services.domain_service import DomainService
+
+            service = DomainService(mock_db)
+            await service.update("dom-1", "instr-1", DomainUpdate(construct_definition=None))
+
+        assert mock_domain.construct_definition is None
 
 
 class TestDomainServiceDelete:

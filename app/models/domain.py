@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy import DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -36,6 +36,21 @@ class Domain(Base):
         String(255),
         nullable=False,
         comment="Nama domain/dimensi",
+    )
+    construct_definition: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Definisi konstruk dari kisi-kisi (kolom D)",
+    )
+    behavioral_indicator_example: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Contoh indikator perilaku dari kisi-kisi (kolom E)",
+    )
+    theory_reference: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        comment="Referensi teori dari kisi-kisi (kolom F)",
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
