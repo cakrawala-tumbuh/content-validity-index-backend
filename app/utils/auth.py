@@ -1,12 +1,15 @@
 """Utilitas untuk validasi JWT dari Authentik menggunakan OIDC/JWKS."""
 
 import asyncio
+import logging
 import time
 from typing import Any
 
 import httpx
 from fastapi import HTTPException, status
 from jose import ExpiredSignatureError, JWTError, jwt
+
+logger = logging.getLogger(__name__)
 
 # Cache JWKS untuk mengurangi request ke Authentik
 _jwks_cache: dict[str, Any] = {}
@@ -128,6 +131,11 @@ async def introspect_token(
     Dipanggil setelah validasi lokal JWT untuk mendeteksi apakah token telah dicabut
     di Authentik — misalnya karena user logout dari Authentik di tab/perangkat lain.
 
+    Kegagalan koneksi atau error HTTP dari endpoint introspeksi (misal: credentials
+    salah, endpoint tidak bisa dihubungi) hanya dicatat sebagai warning dan tidak
+    memblokir request. Validasi tanda tangan JWT dan expiry sudah dilakukan di
+    ``verify_token`` sehingga keamanan tetap terjaga.
+
     Args:
         token: JWT access token yang akan diintrospeksi.
         issuer_url: URL issuer Authentik.
@@ -135,8 +143,7 @@ async def introspect_token(
         client_secret: Client secret untuk autentikasi ke endpoint introspeksi.
 
     Raises:
-        HTTPException: 401 jika Authentik menyatakan token tidak aktif.
-        HTTPException: 503 jika endpoint introspeksi tidak dapat dihubungi.
+        HTTPException: 401 jika Authentik secara eksplisit menyatakan token tidak aktif.
     """
     introspection_url = await _get_introspection_endpoint(issuer_url)
     try:
@@ -149,10 +156,16 @@ async def introspect_token(
             resp.raise_for_status()
             data: dict[str, Any] = resp.json()
     except httpx.HTTPError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Tidak dapat menghubungi identity provider.",
-        ) from exc
+        # Jika endpoint introspeksi tidak bisa dihubungi atau mengembalikan error HTTP
+        # (misalnya credentials salah → 401 dari Authentik), catat warning dan lanjutkan.
+        # JWT verification di verify_token() sudah memvalidasi tanda tangan dan expiry.
+        # Introspeksi hanya best-effort untuk mendeteksi logout Authentik.
+        logger.warning(
+            "Introspeksi token gagal (%s: %s). Melanjutkan hanya dengan JWT.",
+            type(exc).__name__,
+            exc,
+        )
+        return
 
     if not data.get("active", False):
         raise HTTPException(

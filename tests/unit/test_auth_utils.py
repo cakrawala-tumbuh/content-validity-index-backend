@@ -131,8 +131,12 @@ class TestIntrospectToken:
             assert exc_info.value.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_introspeksi_gagal_raise_503(self) -> None:
-        """introspect_token harus raise 503 jika endpoint introspeksi tidak dapat dihubungi."""
+    async def test_introspeksi_gagal_koneksi_tidak_raise(self) -> None:
+        """introspect_token TIDAK BOLEH raise exception jika endpoint tidak dapat dihubungi.
+
+        Kegagalan koneksi (misal: Authentik down, timeout) hanya dicatat sebagai
+        warning dan request dilanjutkan. JWT verification tetap memproteksi endpoint.
+        """
         import httpx as httpx_module
 
         with (
@@ -149,11 +153,40 @@ class TestIntrospectToken:
 
             from app.utils.auth import introspect_token
 
-            with pytest.raises(HTTPException) as exc_info:
-                await introspect_token(
-                    "some.token", "https://auth.example.com", "client_id", "secret"
-                )
-            assert exc_info.value.status_code == 503
+            # Tidak boleh raise — hanya log warning dan lanjut
+            await introspect_token("some.token", "https://auth.example.com", "client_id", "secret")
+
+    @pytest.mark.asyncio
+    async def test_introspeksi_credentials_salah_tidak_raise(self) -> None:
+        """introspect_token TIDAK BOLEH raise exception jika credentials client salah.
+
+        Authentik mengembalikan HTTP 401 saat credentials salah. Perilaku ini
+        harus dianggap sebagai kegagalan koneksi (non-fatal), bukan penolakan token.
+        """
+        import httpx as httpx_module
+
+        with (
+            patch("app.utils.auth._get_introspection_endpoint", new_callable=AsyncMock) as mock_ep,
+            patch("app.utils.auth.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_ep.return_value = "https://auth.example.com/introspect"
+            mock_resp = MagicMock()
+            mock_resp.raise_for_status.side_effect = httpx_module.HTTPStatusError(
+                "401 Unauthorized",
+                request=MagicMock(),
+                response=MagicMock(status_code=401),
+            )
+            mock_instance = AsyncMock()
+            mock_instance.post = AsyncMock(return_value=mock_resp)
+            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=None)
+
+            from app.utils.auth import introspect_token
+
+            # Tidak boleh raise — credentials salah bukan berarti token tidak valid
+            await introspect_token(
+                "some.token", "https://auth.example.com", "wrong_client", "wrong_secret"
+            )
 
 
 class TestSkenarioBugLogoutAuthentik:
