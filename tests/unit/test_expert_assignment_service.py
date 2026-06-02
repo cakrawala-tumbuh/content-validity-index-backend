@@ -1,11 +1,12 @@
 """Unit test untuk ExpertAssignmentService — pengelolaan penugasan expert (tanpa DB)."""
 
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
 
-from app.schemas.expert_assignment import AssignmentCreate
+from app.schemas.expert_assignment import AssignmentCreate, AssignmentResponse
 
 
 class TestExpertAssignmentServiceGetByInstrument:
@@ -92,6 +93,61 @@ class TestExpertAssignmentServiceGetMyAssignments:
 
         mock_repo.get_by_user.assert_called_once_with("expert-1")
         assert len(result) == 3
+
+
+class TestExpertAssignmentInstrumentName:
+    """Kumpulan test untuk eksposur nama instrumen pada assignment."""
+
+    def test_property_instrument_name_mengembalikan_nama_saat_relasi_dimuat(self) -> None:
+        """Property instrument_name harus mengembalikan nama dari relasi instrumen."""
+        from app.models.expert_assignment import ExpertAssignment
+        from app.models.instrument import Instrument
+
+        instrument = Instrument(id="instr-1", name="Skala Motivasi Belajar")
+        assignment = ExpertAssignment(
+            id="assign-1",
+            instrument_id="instr-1",
+            user_id="expert-1",
+            assigned_by="admin-1",
+            instrument=instrument,
+        )
+
+        assert assignment.instrument_name == "Skala Motivasi Belajar"
+
+    def test_property_instrument_name_none_saat_relasi_tidak_ada(self) -> None:
+        """Property instrument_name harus None bila relasi instrumen tidak tersedia."""
+        from app.models.expert_assignment import ExpertAssignment
+
+        assignment = ExpertAssignment(
+            id="assign-1",
+            instrument_id="instr-1",
+            user_id="expert-1",
+            assigned_by="admin-1",
+        )
+
+        assert assignment.instrument_name is None
+
+    def test_schema_response_memuat_instrument_name(self) -> None:
+        """AssignmentResponse harus menyertakan instrument_name dari atribut ORM."""
+        from app.models.expert_assignment import ExpertAssignment
+        from app.models.instrument import Instrument
+
+        now = datetime(2026, 5, 1, 9, 0, 0)
+        instrument = Instrument(id="instr-1", name="Skala Motivasi Belajar")
+        assignment = ExpertAssignment(
+            id="assign-1",
+            instrument_id="instr-1",
+            user_id="expert-1",
+            assigned_by="admin-1",
+            status="pending",
+            assigned_at=now,
+            updated_at=now,
+            instrument=instrument,
+        )
+
+        response = AssignmentResponse.model_validate(assignment)
+
+        assert response.instrument_name == "Skala Motivasi Belajar"
 
 
 class TestExpertAssignmentServiceGetById:

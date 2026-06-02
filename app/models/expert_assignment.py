@@ -3,10 +3,11 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import DateTime, ForeignKey, String, func, inspect
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
+from app.models.instrument import Instrument
 
 
 class ExpertAssignment(Base):
@@ -61,3 +62,21 @@ class ExpertAssignment(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+    instrument: Mapped[Instrument] = relationship(lazy="selectin")
+
+    @property
+    def instrument_name(self) -> str | None:
+        """Mengembalikan nama instrumen yang terkait dengan assignment ini.
+
+        Relasi `instrument` dimuat secara eager (lazy="selectin") pada setiap
+        query baca, sehingga nama instrumen tersedia tanpa query tambahan.
+        Bila relasi belum di-load (misalnya tepat setelah pembuatan assignment),
+        method ini mengembalikan None agar tidak memicu lazy-load di konteks async.
+
+        Returns:
+            Nama instrumen terkait, atau None jika relasi belum dimuat.
+        """
+        if "instrument" in inspect(self).unloaded:
+            return None
+        return self.instrument.name if self.instrument else None

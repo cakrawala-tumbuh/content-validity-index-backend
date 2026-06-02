@@ -32,6 +32,7 @@ class AssignmentResponse(BaseModel):
     Attributes:
         id: ID unik assignment.
         instrument_id: ID instrumen.
+        instrument_name: Nama instrumen terkait (None jika tidak tersedia).
         user_id: ID expert.
         assigned_by: ID admin yang melakukan assign.
         deadline: Batas waktu penilaian.
@@ -46,6 +47,7 @@ class AssignmentResponse(BaseModel):
             "example": {
                 "id": "d4e5f6a7-b8c9-0123-defa-234567890123",
                 "instrument_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                "instrument_name": "Skala Motivasi Belajar",
                 "user_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
                 "assigned_by": "f6a7b8c9-d0e1-2345-fab6-789012345678",
                 "deadline": "2026-06-30T23:59:59",
@@ -58,6 +60,7 @@ class AssignmentResponse(BaseModel):
 
     id: str
     instrument_id: str
+    instrument_name: str | None = None
     user_id: str
     assigned_by: str
     deadline: datetime | None
