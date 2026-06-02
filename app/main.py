@@ -1,5 +1,6 @@
 """Entrypoint aplikasi FastAPI Content Validity Index."""
 
+import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -37,7 +38,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         alembic_cfg = Config("alembic.ini")
         alembic_cfg.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
-        command.upgrade(alembic_cfg, "head")
+
+        # Jalankan di thread pool agar tidak memblokir event loop Uvicorn.
+        # Di thread pool, tidak ada running loop, sehingga alembic/env.py
+        # mengambil path asyncio.run() yang bersih — menghindari deadlock.
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, lambda: command.upgrade(alembic_cfg, "head"))
         logger.info("Migrasi database selesai.")
     except Exception as exc:
         logger.error("Gagal menjalankan migrasi: %s", exc)
