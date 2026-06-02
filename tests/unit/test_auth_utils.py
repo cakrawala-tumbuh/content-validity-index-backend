@@ -6,6 +6,18 @@ import pytest
 from fastapi import HTTPException
 
 
+@pytest.fixture(autouse=True)
+def _reset_introspection_result_cache() -> None:
+    """Mengosongkan cache hasil introspeksi sebelum setiap test.
+
+    Cache bersifat module-global sehingga tanpa reset, hasil introspeksi satu test
+    dapat bocor ke test lain dan membuat test bergantung pada urutan eksekusi.
+    """
+    import app.utils.auth as auth_module
+
+    auth_module._introspection_result_cache.clear()
+
+
 class TestVerifyToken:
     """Kumpulan test untuk fungsi verify_token."""
 
@@ -476,3 +488,88 @@ class TestSkenarioBugLogoutAuthentik:
                 "client_id",
                 "client_secret",
             )
+
+
+class TestIntrospectionResultCache:
+    """Test caching hasil introspeksi token untuk mengurangi beban ke Authentik.
+
+    Introspeksi dipanggil pada setiap request backend. Tanpa cache, render satu
+    halaman web memicu banyak round-trip ke Authentik — membebani identity provider
+    dan menambah latensi per-request, yang terlihat sebagai data tampil tersendat.
+    """
+
+    @pytest.mark.asyncio
+    async def test_hasil_aktif_di_cache_tidak_panggil_authentik_dua_kali(self) -> None:
+        """Token aktif yang sama hanya boleh diintrospeksi sekali selama TTL cache."""
+        with (
+            patch("app.utils.auth._get_introspection_endpoint", new_callable=AsyncMock) as mock_ep,
+            patch("app.utils.auth.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_ep.return_value = "https://auth.example.com/introspect"
+            mock_resp = MagicMock()
+            mock_resp.json.return_value = {"active": True, "sub": "user-123"}
+            mock_resp.raise_for_status.return_value = None
+            mock_instance = AsyncMock()
+            mock_instance.post = AsyncMock(return_value=mock_resp)
+            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=None)
+
+            from app.utils.auth import introspect_token
+
+            await introspect_token("cached.token", "https://auth.example.com", "cid", "secret")
+            await introspect_token("cached.token", "https://auth.example.com", "cid", "secret")
+
+            # Round-trip ke Authentik hanya terjadi sekali — panggilan kedua dari cache.
+            assert mock_instance.post.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_hasil_tidak_aktif_di_cache_tetap_raise_401(self) -> None:
+        """Token tidak aktif yang sudah di-cache harus tetap ditolak tanpa round-trip baru."""
+        with (
+            patch("app.utils.auth._get_introspection_endpoint", new_callable=AsyncMock) as mock_ep,
+            patch("app.utils.auth.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_ep.return_value = "https://auth.example.com/introspect"
+            mock_resp = MagicMock()
+            mock_resp.json.return_value = {"active": False}
+            mock_resp.raise_for_status.return_value = None
+            mock_instance = AsyncMock()
+            mock_instance.post = AsyncMock(return_value=mock_resp)
+            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=None)
+
+            from app.utils.auth import introspect_token
+
+            with pytest.raises(HTTPException):
+                await introspect_token("revoked.cached", "https://auth.example.com", "cid", "sec")
+
+            # Panggilan kedua harus tetap 401 dari cache, tanpa round-trip tambahan.
+            with pytest.raises(HTTPException) as exc_info:
+                await introspect_token("revoked.cached", "https://auth.example.com", "cid", "sec")
+            assert exc_info.value.status_code == 401
+            assert mock_instance.post.await_count == 1
+
+    @pytest.mark.asyncio
+    async def test_kegagalan_introspeksi_tidak_di_cache(self) -> None:
+        """Kegagalan koneksi tidak boleh di-cache agar request berikutnya mencoba lagi."""
+        import httpx as httpx_module
+
+        with (
+            patch("app.utils.auth._get_introspection_endpoint", new_callable=AsyncMock) as mock_ep,
+            patch("app.utils.auth.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_ep.return_value = "https://auth.example.com/introspect"
+            mock_instance = AsyncMock()
+            mock_instance.post = AsyncMock(
+                side_effect=httpx_module.ConnectError("Connection refused")
+            )
+            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=None)
+
+            from app.utils.auth import introspect_token
+
+            await introspect_token("flaky.token", "https://auth.example.com", "cid", "sec")
+            await introspect_token("flaky.token", "https://auth.example.com", "cid", "sec")
+
+            # Karena kegagalan tidak di-cache, kedua panggilan tetap mencoba ke Authentik.
+            assert mock_instance.post.await_count == 2

@@ -1,6 +1,7 @@
 """Utilitas untuk validasi JWT dari Authentik menggunakan OIDC/JWKS."""
 
 import asyncio
+import hashlib
 import logging
 import time
 from typing import Any
@@ -11,16 +12,42 @@ from jose import ExpiredSignatureError, JWTError, jwt
 
 logger = logging.getLogger(__name__)
 
+# Cache JWKS dan URL endpoint introspeksi untuk mengurangi request ke Authentik.
+#
+# TTL sengaja dibuat panjang (1 jam): kunci publik JWKS sangat jarang dirotasi dan
+# URL endpoint OIDC praktis tidak pernah berubah. TTL pendek (mis. 5 menit) memicu
+# "refresh storm" periodik — setiap kali cache kedaluwarsa, request berikutnya harus
+# menunggu discovery OIDC (beberapa detik) sementara request lain menumpuk di lock,
+# menghasilkan lonjakan latensi/kegagalan berkala yang terlihat sebagai data
+# "muncul lalu hilang" di sisi web.
+DISCOVERY_CACHE_TTL_SECONDS = 3600  # 1 jam
+
+# Alias backward-compatible (dipakai oleh test lama yang mereferensikan nama ini).
+JWKS_CACHE_TTL_SECONDS = DISCOVERY_CACHE_TTL_SECONDS
+
+# TTL cache hasil introspeksi token. Introspeksi dipanggil pada setiap request;
+# tanpa cache, setiap request memicu round-trip ke Authentik sehingga membebani
+# identity provider dan menambah latensi per-request. Cache singkat ini membatasi
+# introspeksi menjadi maksimal sekali per token per interval, dengan konsekuensi
+# deteksi logout/pencabutan token tertunda paling lama selama TTL ini.
+INTROSPECTION_RESULT_CACHE_TTL_SECONDS = 60
+
+# Batas jumlah entri cache hasil introspeksi untuk mencegah pertumbuhan memori tak
+# terbatas. Saat batas terlampaui, entri yang sudah kedaluwarsa dibersihkan.
+INTROSPECTION_RESULT_CACHE_MAX_ENTRIES = 10_000
+
 # Cache JWKS untuk mengurangi request ke Authentik
 _jwks_cache: dict[str, Any] = {}
 _jwks_last_fetched: float = 0.0
 _jwks_lock = asyncio.Lock()
-JWKS_CACHE_TTL_SECONDS = 300  # 5 menit
 
 # Cache URL endpoint introspeksi Authentik
 _introspection_endpoint_cache: str = ""
 _introspection_endpoint_last_fetched: float = 0.0
 _introspection_endpoint_lock = asyncio.Lock()
+
+# Cache hasil introspeksi token: hash token -> (is_active, waktu_monotonic_disimpan)
+_introspection_result_cache: dict[str, tuple[bool, float]] = {}
 
 
 async def _fetch_jwks(issuer_url: str) -> dict[str, Any]:
@@ -84,7 +111,10 @@ async def get_jwks(issuer_url: str) -> dict[str, Any]:
                 except HTTPException:
                     if not _jwks_cache:
                         raise  # Tidak ada cache lama, harus gagal
-                    # Gunakan cache lama — JWKS jarang dirotasi, JWT tetap dapat diverifikasi
+                    # Gunakan cache lama — JWKS jarang dirotasi, JWT tetap dapat diverifikasi.
+                    # Perbarui timestamp agar request berikutnya tidak menumpuk di lock dan
+                    # masing-masing menunggu timeout discovery sementara Authentik tidak tersedia.
+                    _jwks_last_fetched = time.monotonic()
                     logger.warning(
                         "Gagal memperbarui JWKS cache (Authentik tidak tersedia). "
                         "Menggunakan data cache lama."
@@ -147,6 +177,58 @@ async def _get_introspection_endpoint(issuer_url: str) -> str:
     return _introspection_endpoint_cache
 
 
+def _raise_token_inactive() -> None:
+    """Melempar HTTPException 401 standar untuk token yang tidak aktif.
+
+    Raises:
+        HTTPException: 401 dengan pesan sesi berakhir.
+    """
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Token tidak aktif. Sesi Anda telah berakhir, silakan login kembali.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def _get_cached_introspection(token_hash: str) -> bool | None:
+    """Mengambil hasil introspeksi token dari cache jika masih berlaku.
+
+    Args:
+        token_hash: Hash SHA-256 dari token (dipakai sebagai kunci cache).
+
+    Returns:
+        ``True``/``False`` status aktif token jika ada entri cache yang masih berlaku,
+        atau ``None`` jika tidak ada cache atau sudah kedaluwarsa.
+    """
+    cached = _introspection_result_cache.get(token_hash)
+    if cached is None:
+        return None
+    is_active, stored_at = cached
+    if time.monotonic() - stored_at > INTROSPECTION_RESULT_CACHE_TTL_SECONDS:
+        return None
+    return is_active
+
+
+def _store_introspection_result(token_hash: str, is_active: bool) -> None:
+    """Menyimpan hasil introspeksi token ke cache dengan pembersihan entri kedaluwarsa.
+
+    Args:
+        token_hash: Hash SHA-256 dari token (dipakai sebagai kunci cache).
+        is_active: Status aktif token hasil introspeksi Authentik.
+    """
+    now = time.monotonic()
+    if len(_introspection_result_cache) >= INTROSPECTION_RESULT_CACHE_MAX_ENTRIES:
+        # Bersihkan entri yang sudah kedaluwarsa untuk mencegah pertumbuhan tak terbatas.
+        expired = [
+            key
+            for key, (_, stored_at) in _introspection_result_cache.items()
+            if now - stored_at > INTROSPECTION_RESULT_CACHE_TTL_SECONDS
+        ]
+        for key in expired:
+            del _introspection_result_cache[key]
+    _introspection_result_cache[token_hash] = (is_active, now)
+
+
 async def introspect_token(
     token: str,
     issuer_url: str,
@@ -157,6 +239,11 @@ async def introspect_token(
 
     Dipanggil setelah validasi lokal JWT untuk mendeteksi apakah token telah dicabut
     di Authentik — misalnya karena user logout dari Authentik di tab/perangkat lain.
+
+    Hasil introspeksi di-cache singkat (lihat ``INTROSPECTION_RESULT_CACHE_TTL_SECONDS``)
+    agar tidak setiap request menghasilkan round-trip ke Authentik. Tanpa cache ini,
+    render satu halaman web yang memicu banyak request backend akan membanjiri Authentik
+    dan menambah latensi per-request — penyebab data tampil tersendat/berkala.
 
     Semua kegagalan yang bersifat infrastruktur (koneksi gagal, timeout, credentials
     salah, endpoint OIDC discovery tidak tersedia) hanya dicatat sebagai warning dan
@@ -172,6 +259,14 @@ async def introspect_token(
     Raises:
         HTTPException: 401 jika Authentik secara eksplisit menyatakan token tidak aktif.
     """
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+    cached_active = _get_cached_introspection(token_hash)
+    if cached_active is not None:
+        if not cached_active:
+            _raise_token_inactive()
+        return
+
     try:
         introspection_url = await _get_introspection_endpoint(issuer_url)
     except HTTPException:
@@ -192,7 +287,7 @@ async def introspect_token(
             )
             resp.raise_for_status()
             data: dict[str, Any] = resp.json()
-    except httpx.HTTPError as exc:
+    except (httpx.HTTPError, KeyError, ValueError) as exc:
         # Koneksi gagal atau error HTTP (misal: credentials salah → 401 dari Authentik).
         # JWT verification di verify_token() sudah memvalidasi tanda tangan dan expiry.
         logger.warning(
@@ -202,12 +297,11 @@ async def introspect_token(
         )
         return
 
-    if not data.get("active", False):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token tidak aktif. Sesi Anda telah berakhir, silakan login kembali.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    is_active = bool(data.get("active", False))
+    _store_introspection_result(token_hash, is_active)
+
+    if not is_active:
+        _raise_token_inactive()
 
 
 async def verify_token(token: str, issuer_url: str) -> dict[str, Any]:
