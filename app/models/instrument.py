@@ -37,10 +37,10 @@ class Instrument(Base):
         default="draft",
         comment="Status: draft | active | closed",
     )
-    created_by: Mapped[str] = mapped_column(
+    created_by: Mapped[str | None] = mapped_column(
         String(255),
         ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=False,
+        nullable=True,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()

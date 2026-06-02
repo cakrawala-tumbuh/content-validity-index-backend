@@ -89,6 +89,6 @@ class InstrumentResponse(BaseModel):
     description: str | None
     version: str
     status: str
-    created_by: str
+    created_by: str | None
     created_at: datetime
     updated_at: datetime

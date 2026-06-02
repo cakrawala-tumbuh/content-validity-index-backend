@@ -233,6 +233,158 @@ class TestIntrospectToken:
             )
 
 
+class TestFetchJwks:
+    """Test untuk fungsi _fetch_jwks — termasuk error dari JSON parsing."""
+
+    @pytest.mark.asyncio
+    async def test_jwks_uri_tidak_ada_di_respons_raise_503(self) -> None:
+        """_fetch_jwks harus raise 503 jika respons OIDC tidak mengandung kunci jwks_uri.
+
+        Terjadi jika Authentik mengembalikan JSON yang tidak sesuai format OIDC,
+        misalnya saat upgrade Authentik mengubah format discovery document.
+        """
+        with patch("app.utils.auth.httpx.AsyncClient") as mock_client_cls:
+            mock_resp = MagicMock()
+            mock_resp.raise_for_status.return_value = None
+            mock_resp.json.return_value = {}  # Tidak ada kunci jwks_uri
+            mock_instance = AsyncMock()
+            mock_instance.get = AsyncMock(return_value=mock_resp)
+            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=None)
+
+            from app.utils.auth import _fetch_jwks
+
+            with pytest.raises(HTTPException) as exc_info:
+                await _fetch_jwks("https://auth.example.com/application/o/cvi/")
+            assert exc_info.value.status_code == 503
+
+    @pytest.mark.asyncio
+    async def test_respons_bukan_json_raise_503(self) -> None:
+        """_fetch_jwks harus raise 503 jika respons OIDC bukan JSON valid."""
+        with patch("app.utils.auth.httpx.AsyncClient") as mock_client_cls:
+            mock_resp = MagicMock()
+            mock_resp.raise_for_status.return_value = None
+            mock_resp.json.side_effect = ValueError("No JSON object could be decoded")
+            mock_instance = AsyncMock()
+            mock_instance.get = AsyncMock(return_value=mock_resp)
+            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=None)
+
+            from app.utils.auth import _fetch_jwks
+
+            with pytest.raises(HTTPException) as exc_info:
+                await _fetch_jwks("https://auth.example.com/application/o/cvi/")
+            assert exc_info.value.status_code == 503
+
+
+class TestGetIntrospectionEndpoint:
+    """Test untuk fungsi _get_introspection_endpoint — stale cache dan error handling."""
+
+    @pytest.mark.asyncio
+    async def test_stale_cache_dipakai_saat_koneksi_gagal(self) -> None:
+        """_get_introspection_endpoint harus kembalikan cache lama saat Authentik tidak tersedia.
+
+        Mencegah penumpukan request yang semua menunggu lock secara berurutan (hingga 10 detik
+        per request) saat Authentik sedang tidak tersedia sementara.
+        URL endpoint introspeksi sangat jarang berubah sehingga aman menggunakan cache lama.
+        """
+        import httpx as httpx_module
+
+        stale_url = "https://auth.example.com/application/o/introspect/"
+
+        with (
+            patch("app.utils.auth._introspection_endpoint_last_fetched", 0.0),
+            patch("app.utils.auth._introspection_endpoint_cache", stale_url),
+            patch("app.utils.auth.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_instance = AsyncMock()
+            mock_instance.get = AsyncMock(
+                side_effect=httpx_module.ConnectError("Connection refused")
+            )
+            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=None)
+
+            from app.utils.auth import _get_introspection_endpoint
+
+            result = await _get_introspection_endpoint(
+                "https://auth.example.com/application/o/cvi/"
+            )
+            assert result == stale_url
+
+    @pytest.mark.asyncio
+    async def test_raise_503_saat_gagal_dan_tidak_ada_cache(self) -> None:
+        """_get_introspection_endpoint harus raise 503 saat gagal dan tidak ada cache lama."""
+        import httpx as httpx_module
+
+        with (
+            patch("app.utils.auth._introspection_endpoint_last_fetched", 0.0),
+            patch("app.utils.auth._introspection_endpoint_cache", ""),
+            patch("app.utils.auth.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_instance = AsyncMock()
+            mock_instance.get = AsyncMock(
+                side_effect=httpx_module.ConnectError("Connection refused")
+            )
+            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=None)
+
+            from app.utils.auth import _get_introspection_endpoint
+
+            with pytest.raises(HTTPException) as exc_info:
+                await _get_introspection_endpoint("https://auth.example.com/application/o/cvi/")
+            assert exc_info.value.status_code == 503
+
+    @pytest.mark.asyncio
+    async def test_key_hilang_di_json_gunakan_stale_cache(self) -> None:
+        """_get_introspection_endpoint harus pakai stale cache jika key tidak ada di JSON.
+
+        Terjadi jika Authentik mengembalikan JSON discovery yang tidak lengkap.
+        """
+        stale_url = "https://auth.example.com/application/o/introspect/"
+
+        with (
+            patch("app.utils.auth._introspection_endpoint_last_fetched", 0.0),
+            patch("app.utils.auth._introspection_endpoint_cache", stale_url),
+            patch("app.utils.auth.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_resp = MagicMock()
+            mock_resp.raise_for_status.return_value = None
+            mock_resp.json.return_value = {}  # Tidak ada kunci introspection_endpoint
+            mock_instance = AsyncMock()
+            mock_instance.get = AsyncMock(return_value=mock_resp)
+            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=None)
+
+            from app.utils.auth import _get_introspection_endpoint
+
+            result = await _get_introspection_endpoint(
+                "https://auth.example.com/application/o/cvi/"
+            )
+            assert result == stale_url
+
+    @pytest.mark.asyncio
+    async def test_key_hilang_tanpa_cache_raise_503(self) -> None:
+        """_get_introspection_endpoint harus raise 503 jika JSON tidak valid dan tidak ada cache."""
+        with (
+            patch("app.utils.auth._introspection_endpoint_last_fetched", 0.0),
+            patch("app.utils.auth._introspection_endpoint_cache", ""),
+            patch("app.utils.auth.httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_resp = MagicMock()
+            mock_resp.raise_for_status.return_value = None
+            mock_resp.json.return_value = {}  # Tidak ada kunci introspection_endpoint
+            mock_instance = AsyncMock()
+            mock_instance.get = AsyncMock(return_value=mock_resp)
+            mock_client_cls.return_value.__aenter__ = AsyncMock(return_value=mock_instance)
+            mock_client_cls.return_value.__aexit__ = AsyncMock(return_value=None)
+
+            from app.utils.auth import _get_introspection_endpoint
+
+            with pytest.raises(HTTPException) as exc_info:
+                await _get_introspection_endpoint("https://auth.example.com/application/o/cvi/")
+            assert exc_info.value.status_code == 503
+
+
 class TestSkenarioBugLogoutAuthentik:
     """
     Simulasi bug: user masih bisa akses CVI setelah logout dari Authentik.

@@ -48,7 +48,7 @@ async def _fetch_jwks(issuer_url: str) -> dict[str, Any]:
             jwks_resp = await client.get(jwks_uri)
             jwks_resp.raise_for_status()
             return dict(jwks_resp.json())
-    except httpx.HTTPError as exc:
+    except (httpx.HTTPError, KeyError, ValueError) as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Tidak dapat menghubungi identity provider.",
@@ -127,11 +127,22 @@ async def _get_introspection_endpoint(issuer_url: str) -> str:
                         resp.raise_for_status()
                         _introspection_endpoint_cache = resp.json()["introspection_endpoint"]
                         _introspection_endpoint_last_fetched = time.monotonic()
-                except httpx.HTTPError as exc:
-                    raise HTTPException(
-                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                        detail="Tidak dapat menghubungi identity provider.",
-                    ) from exc
+                except (httpx.HTTPError, KeyError, ValueError) as exc:
+                    if not _introspection_endpoint_cache:
+                        raise HTTPException(
+                            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail="Tidak dapat menghubungi identity provider.",
+                        ) from exc
+                    # Gunakan URL cache lama — endpoint introspeksi sangat jarang berubah.
+                    # Perbarui timestamp agar request berikutnya tidak menumpuk di lock
+                    # sambil Authentik sedang tidak tersedia.
+                    _introspection_endpoint_last_fetched = time.monotonic()
+                    logger.warning(
+                        "Gagal memperbarui endpoint introspeksi (%s: %s). "
+                        "Menggunakan URL cache lama.",
+                        type(exc).__name__,
+                        exc,
+                    )
 
     return _introspection_endpoint_cache
 
