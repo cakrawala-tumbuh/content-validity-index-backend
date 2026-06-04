@@ -29,7 +29,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         app: Instance FastAPI.
 
     Yields:
-        None
+        None: Kontrol dikembalikan ke aplikasi selama masa hidupnya.
+
+    Raises:
+        Exception: Bila migrasi database gagal saat startup; exception
+            di-log lalu di-raise ulang sehingga aplikasi tidak ikut berjalan.
     """
     logger.info("Menjalankan migrasi database...")
     try:

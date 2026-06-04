@@ -32,6 +32,10 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
     Yields:
         AsyncSession: Session SQLAlchemy yang aktif.
+
+    Raises:
+        Exception: Meneruskan kembali (re-raise) exception apa pun yang terjadi
+            selama request setelah session di-rollback.
     """
     async with AsyncSessionFactory() as session:
         try:

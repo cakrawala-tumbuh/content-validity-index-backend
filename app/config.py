@@ -43,7 +43,15 @@ class Settings(BaseSettings):
     FORWARDED_ALLOW_IPS: str = "*"
 
     def model_post_init(self, __context: object) -> None:
-        """Parse CORS_ORIGINS jika dikirim sebagai JSON string."""
+        """Normalisasi `CORS_ORIGINS` setelah model selesai diinisialisasi.
+
+        Hook bawaan Pydantic yang dipanggil otomatis sesudah validasi. Bila
+        `CORS_ORIGINS` diterima sebagai JSON string (mis. dari environment
+        variable), nilainya di-parse menjadi list.
+
+        Args:
+            __context: Konteks yang disuplai Pydantic; tidak digunakan di sini.
+        """
         if isinstance(self.CORS_ORIGINS, str):
             object.__setattr__(self, "CORS_ORIGINS", json.loads(self.CORS_ORIGINS))
 
