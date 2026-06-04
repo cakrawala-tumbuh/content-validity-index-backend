@@ -4,9 +4,10 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, String, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
+from app.models.expertise_area import ExpertiseArea, user_expertise_areas
 
 
 class User(Base):
@@ -31,8 +32,14 @@ class User(Base):
         nullable=False,
     )
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    full_name_overridden: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+        comment="True jika full_name diedit manual pengguna (tidak ditimpa sync Authentik)",
+    )
     institution: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    expertise_area: Mapped[str | None] = mapped_column(String(500), nullable=True)
     role: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
@@ -48,4 +55,12 @@ class User(Base):
         nullable=False,
         server_default=func.now(),
         onupdate=func.now(),
+    )
+
+    # Bidang keahlian (many-to-many). Dimuat eager (selectin) agar aman diakses
+    # dalam konteks async tanpa lazy-load tambahan.
+    expertise_areas: Mapped[list[ExpertiseArea]] = relationship(
+        secondary=user_expertise_areas,
+        lazy="selectin",
+        order_by=ExpertiseArea.name,
     )

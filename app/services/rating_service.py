@@ -9,7 +9,12 @@ from app.models.rating import Rating
 from app.repositories.expert_assignment_repository import ExpertAssignmentRepository
 from app.repositories.item_repository import ItemRepository
 from app.repositories.rating_repository import RatingRepository
-from app.schemas.rating import RatingBulkCreate, RatingUpdate
+from app.schemas.rating import (
+    NOTES_REQUIRED_MESSAGE,
+    RatingBulkCreate,
+    RatingUpdate,
+    is_notes_missing,
+)
 
 
 class RatingService:
@@ -164,7 +169,8 @@ class RatingService:
             Instance Rating yang sudah diperbarui.
 
         Raises:
-            HTTPException: Jika rating tidak ditemukan (404) atau tidak memiliki akses (403).
+            HTTPException: Jika rating tidak ditemukan (404), tidak memiliki akses (403),
+                           atau catatan kosong padahal skor akhir 1/2 (400).
         """
         await self._validate_assignment_ownership(assignment_id, user_id)
 
@@ -184,4 +190,11 @@ class RatingService:
             rating.relevance_score = data.relevance_score
         if data.notes is not None:
             rating.notes = data.notes
+
+        # Catatan wajib diisi jika skor akhir bernilai 1 atau 2.
+        if is_notes_missing(rating.relevance_score, rating.notes):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=NOTES_REQUIRED_MESSAGE,
+            )
         return await self.repo.update(rating)

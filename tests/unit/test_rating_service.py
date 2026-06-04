@@ -4,8 +4,37 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 from app.schemas.rating import RatingBulkCreate, RatingItem, RatingUpdate
+
+
+class TestRatingItemSchema:
+    """Kumpulan test untuk validasi catatan wajib pada RatingItem."""
+
+    @pytest.mark.parametrize("score", [1, 2])
+    def test_skor_rendah_tanpa_catatan_raise_validation_error(self, score: int) -> None:
+        """RatingItem dengan skor 1/2 tanpa catatan harus gagal validasi."""
+        with pytest.raises(ValidationError):
+            RatingItem(item_id="item-1", relevance_score=score, notes=None)
+
+    @pytest.mark.parametrize("score", [1, 2])
+    def test_skor_rendah_catatan_spasi_raise_validation_error(self, score: int) -> None:
+        """RatingItem dengan skor 1/2 dan catatan hanya spasi harus gagal validasi."""
+        with pytest.raises(ValidationError):
+            RatingItem(item_id="item-1", relevance_score=score, notes="   ")
+
+    @pytest.mark.parametrize("score", [1, 2])
+    def test_skor_rendah_dengan_catatan_valid(self, score: int) -> None:
+        """RatingItem dengan skor 1/2 dan catatan terisi harus valid."""
+        item = RatingItem(item_id="item-1", relevance_score=score, notes="Perlu revisi.")
+        assert item.relevance_score == score
+
+    @pytest.mark.parametrize("score", [3, 4])
+    def test_skor_tinggi_tanpa_catatan_valid(self, score: int) -> None:
+        """RatingItem dengan skor 3/4 tanpa catatan harus tetap valid."""
+        item = RatingItem(item_id="item-1", relevance_score=score, notes=None)
+        assert item.notes is None
 
 
 class TestRatingServiceValidation:
@@ -228,6 +257,96 @@ class TestRatingServiceUpdateSingle:
         assert mock_rating.notes == "Sangat relevan"
         mock_rating_repo.update.assert_called_once_with(mock_rating)
         assert result is mock_rating
+
+    @pytest.mark.asyncio
+    async def test_update_single_skor_rendah_tanpa_catatan_raise_400(self) -> None:
+        """update_single harus raise 400 jika skor akhir 1/2 tetapi catatan kosong."""
+        mock_db = AsyncMock()
+        mock_assignment = MagicMock()
+        mock_assignment.user_id = "expert-1"
+
+        mock_rating = MagicMock()
+        mock_rating.id = "rating-1"
+        mock_rating.assignment_id = "assign-1"
+        mock_rating.user_id = "expert-1"
+        mock_rating.relevance_score = 4
+        mock_rating.notes = None
+
+        mock_assignment_repo = AsyncMock()
+        mock_assignment_repo.get_by_id.return_value = mock_assignment
+
+        mock_rating_repo = AsyncMock()
+        mock_rating_repo.get_by_id.return_value = mock_rating
+
+        with (
+            patch(
+                "app.services.rating_service.ExpertAssignmentRepository",
+                return_value=mock_assignment_repo,
+            ),
+            patch(
+                "app.services.rating_service.RatingRepository",
+                return_value=mock_rating_repo,
+            ),
+            patch(
+                "app.services.rating_service.ItemRepository",
+                return_value=AsyncMock(),
+            ),
+        ):
+            from app.services.rating_service import RatingService
+
+            service = RatingService(mock_db)
+            with pytest.raises(HTTPException) as exc_info:
+                await service.update_single(
+                    "assign-1", "rating-1", "expert-1", RatingUpdate(relevance_score=2)
+                )
+
+        assert exc_info.value.status_code == 400
+        mock_rating_repo.update.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_update_single_skor_rendah_dengan_catatan_berhasil(self) -> None:
+        """update_single harus berhasil jika skor 1/2 disertai catatan."""
+        mock_db = AsyncMock()
+        mock_assignment = MagicMock()
+        mock_assignment.user_id = "expert-1"
+
+        mock_rating = MagicMock()
+        mock_rating.id = "rating-1"
+        mock_rating.assignment_id = "assign-1"
+        mock_rating.user_id = "expert-1"
+        mock_rating.relevance_score = 4
+        mock_rating.notes = None
+
+        mock_assignment_repo = AsyncMock()
+        mock_assignment_repo.get_by_id.return_value = mock_assignment
+
+        mock_rating_repo = AsyncMock()
+        mock_rating_repo.get_by_id.return_value = mock_rating
+        mock_rating_repo.update.return_value = mock_rating
+
+        with (
+            patch(
+                "app.services.rating_service.ExpertAssignmentRepository",
+                return_value=mock_assignment_repo,
+            ),
+            patch(
+                "app.services.rating_service.RatingRepository",
+                return_value=mock_rating_repo,
+            ),
+            patch(
+                "app.services.rating_service.ItemRepository",
+                return_value=AsyncMock(),
+            ),
+        ):
+            from app.services.rating_service import RatingService
+
+            service = RatingService(mock_db)
+            data = RatingUpdate(relevance_score=1, notes="Tidak sesuai konstruk.")
+            await service.update_single("assign-1", "rating-1", "expert-1", data)
+
+        assert mock_rating.relevance_score == 1
+        assert mock_rating.notes == "Tidak sesuai konstruk."
+        mock_rating_repo.update.assert_called_once_with(mock_rating)
 
     @pytest.mark.asyncio
     async def test_update_single_rating_tidak_ditemukan_raise_404(self) -> None:

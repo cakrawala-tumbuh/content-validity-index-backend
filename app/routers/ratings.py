@@ -85,12 +85,17 @@ async def get_ratings(
     description=(
         "Mengirimkan penilaian untuk semua item dalam satu assignment sekaligus. "
         "Jika rating untuk item tertentu sudah ada, akan di-update (upsert). "
-        "Hanya expert yang di-assign yang dapat submit."
+        "Hanya expert yang di-assign yang dapat submit. Catatan wajib diisi untuk "
+        "item dengan skor relevansi 1 (Tidak Relevan) atau 2 (Kurang Relevan)."
     ),
     responses={
         403: {"description": "Akses ditolak atau bukan expert yang di-assign."},
         404: {"description": "Assignment tidak ditemukan."},
-        422: {"description": "Skor relevansi harus antara 1 dan 4."},
+        422: {
+            "description": (
+                "Skor relevansi harus antara 1 dan 4, atau catatan wajib diisi untuk skor 1/2."
+            )
+        },
     },
 )
 async def bulk_submit_ratings(
@@ -136,9 +141,11 @@ async def bulk_submit_ratings(
     summary="Perbarui satu penilaian",
     description=(
         "Memperbarui skor atau catatan untuk satu penilaian item. "
-        "Hanya expert pemilik rating yang dapat memperbarui."
+        "Hanya expert pemilik rating yang dapat memperbarui. Catatan wajib diisi "
+        "jika skor akhir bernilai 1 (Tidak Relevan) atau 2 (Kurang Relevan)."
     ),
     responses={
+        400: {"description": "Catatan wajib diisi untuk skor relevansi 1 atau 2."},
         403: {"description": "Akses ditolak."},
         404: {"description": "Rating atau assignment tidak ditemukan."},
     },

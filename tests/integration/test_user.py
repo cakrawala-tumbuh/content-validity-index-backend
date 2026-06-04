@@ -3,7 +3,9 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.expertise_area import ExpertiseArea
 from app.models.user import User
+from app.repositories.expertise_area_repository import ExpertiseAreaRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import UserUpdate
 from app.services.user_service import UserService
@@ -129,7 +131,13 @@ class TestUserService:
             "groups": [],
         }
         user = await service.sync_from_claims(claims, "cvi-admin", "cvi-expert")
-        data = UserUpdate(institution="ITB", expertise_area="Kesehatan")
+
+        # Siapkan satu bidang keahlian pada daftar master untuk ditautkan.
+        area = await ExpertiseAreaRepository(db).create(
+            ExpertiseArea(id="area-int-1", name="Kesehatan")
+        )
+
+        data = UserUpdate(institution="ITB", expertise_area_ids=[area.id])
         updated = await service.update(user.id, data)
         assert updated.institution == "ITB"
-        assert updated.expertise_area == "Kesehatan"
+        assert [a.name for a in updated.expertise_areas] == ["Kesehatan"]

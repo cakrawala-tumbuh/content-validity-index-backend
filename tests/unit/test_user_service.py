@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
-from app.schemas.user import UserUpdate
+from app.schemas.user import UserSelfUpdate, UserUpdate
 
 
 class TestUserServiceSyncFromClaims:
@@ -46,6 +46,7 @@ class TestUserServiceSyncFromClaims:
         mock_existing_user = MagicMock()
         mock_existing_user.id = "user-sub-456"
         mock_existing_user.email = "lama@test.com"
+        mock_existing_user.full_name_overridden = False
 
         mock_repo = AsyncMock()
         mock_repo.get_by_id.return_value = mock_existing_user
@@ -67,6 +68,36 @@ class TestUserServiceSyncFromClaims:
         mock_repo.create.assert_not_called()
         assert mock_existing_user.email == "baru@test.com"
         assert mock_existing_user.full_name == "Nama Baru"
+
+    @pytest.mark.asyncio
+    async def test_sync_tidak_menimpa_full_name_yang_sudah_diedit(self) -> None:
+        """sync_from_claims tidak boleh menimpa full_name jika sudah diedit manual."""
+        mock_db = AsyncMock()
+        mock_existing_user = MagicMock()
+        mock_existing_user.id = "user-sub-789"
+        mock_existing_user.email = "lama@test.com"
+        mock_existing_user.full_name = "Nama Pilihan Pengguna"
+        mock_existing_user.full_name_overridden = True
+
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_existing_user
+        mock_repo.update.return_value = mock_existing_user
+
+        with patch("app.services.user_service.UserRepository", return_value=mock_repo):
+            from app.services.user_service import UserService
+
+            service = UserService(mock_db)
+            claims = {
+                "sub": "user-sub-789",
+                "email": "baru@test.com",
+                "name": "Nama Dari Authentik",
+                "groups": [],
+            }
+            await service.sync_from_claims(claims, "admin-group", "expert-group")
+
+        # Email tetap disinkronkan, tetapi full_name dipertahankan.
+        assert mock_existing_user.email == "baru@test.com"
+        assert mock_existing_user.full_name == "Nama Pilihan Pengguna"
 
     @pytest.mark.asyncio
     async def test_sync_menetapkan_role_admin_dari_grup(self) -> None:
@@ -245,7 +276,6 @@ class TestUserServiceUpdate:
         mock_user = MagicMock()
         mock_user.id = "user-1"
         mock_user.institution = "UI"
-        mock_user.expertise_area = "Psikologi"
         mock_user.is_active = True
 
         mock_repo = AsyncMock()
@@ -256,13 +286,81 @@ class TestUserServiceUpdate:
             from app.services.user_service import UserService
 
             service = UserService(mock_db)
-            data = UserUpdate(institution="UGM", expertise_area="Pendidikan")
+            data = UserUpdate(institution="UGM")
             result = await service.update("user-1", data)
 
         assert mock_user.institution == "UGM"
-        assert mock_user.expertise_area == "Pendidikan"
         mock_repo.update.assert_called_once_with(mock_user)
         assert result is mock_user
+
+    @pytest.mark.asyncio
+    async def test_update_menetapkan_expertise_areas(self) -> None:
+        """update harus menetapkan daftar bidang keahlian dari expertise_area_ids."""
+        mock_db = AsyncMock()
+        mock_user = MagicMock()
+        mock_user.id = "user-1"
+
+        area_1 = MagicMock()
+        area_1.id = "area-1"
+        area_2 = MagicMock()
+        area_2.id = "area-2"
+
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_user
+        mock_repo.update.return_value = mock_user
+
+        mock_expertise_repo = AsyncMock()
+        mock_expertise_repo.get_by_ids.return_value = [area_1, area_2]
+
+        with (
+            patch("app.services.user_service.UserRepository", return_value=mock_repo),
+            patch(
+                "app.services.user_service.ExpertiseAreaRepository",
+                return_value=mock_expertise_repo,
+            ),
+        ):
+            from app.services.user_service import UserService
+
+            service = UserService(mock_db)
+            data = UserUpdate(expertise_area_ids=["area-1", "area-2"])
+            await service.update("user-1", data)
+
+        assert mock_user.expertise_areas == [area_1, area_2]
+        mock_expertise_repo.get_by_ids.assert_called_once_with(["area-1", "area-2"])
+
+    @pytest.mark.asyncio
+    async def test_update_expertise_area_tidak_ditemukan_raise_400(self) -> None:
+        """update harus raise 400 jika ada expertise_area_id yang tidak ditemukan."""
+        mock_db = AsyncMock()
+        mock_user = MagicMock()
+        mock_user.id = "user-1"
+
+        area_1 = MagicMock()
+        area_1.id = "area-1"
+
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_user
+
+        mock_expertise_repo = AsyncMock()
+        # Hanya satu dari dua ID yang ditemukan.
+        mock_expertise_repo.get_by_ids.return_value = [area_1]
+
+        with (
+            patch("app.services.user_service.UserRepository", return_value=mock_repo),
+            patch(
+                "app.services.user_service.ExpertiseAreaRepository",
+                return_value=mock_expertise_repo,
+            ),
+        ):
+            from app.services.user_service import UserService
+
+            service = UserService(mock_db)
+            with pytest.raises(HTTPException) as exc_info:
+                await service.update("user-1", UserUpdate(expertise_area_ids=["area-1", "hilang"]))
+
+        assert exc_info.value.status_code == 400
+        assert "hilang" in exc_info.value.detail
+        mock_repo.update.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_update_tidak_ditemukan_raise_404(self) -> None:
@@ -287,7 +385,6 @@ class TestUserServiceUpdate:
         mock_user = MagicMock()
         mock_user.id = "user-1"
         mock_user.institution = "Institusi Tetap"
-        mock_user.expertise_area = "Keahlian Tetap"
         mock_user.is_active = True
 
         mock_repo = AsyncMock()
@@ -301,7 +398,6 @@ class TestUserServiceUpdate:
             await service.update("user-1", UserUpdate())
 
         assert mock_user.institution == "Institusi Tetap"
-        assert mock_user.expertise_area == "Keahlian Tetap"
         assert mock_user.is_active is True
 
     @pytest.mark.asyncio
@@ -323,3 +419,106 @@ class TestUserServiceUpdate:
             await service.update("user-1", UserUpdate(is_active=False))
 
         assert mock_user.is_active is False
+
+
+class TestUserServiceUpdateSelf:
+    """Kumpulan test untuk method UserService.update_self()."""
+
+    @pytest.mark.asyncio
+    async def test_update_self_mengubah_nama_dan_menandai_overridden(self) -> None:
+        """update_self harus mengubah full_name dan menandai full_name_overridden."""
+        mock_db = AsyncMock()
+        mock_user = MagicMock()
+        mock_user.id = "user-1"
+        mock_user.full_name = "Nama Lama"
+        mock_user.full_name_overridden = False
+
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_user
+        mock_repo.update.return_value = mock_user
+
+        with patch("app.services.user_service.UserRepository", return_value=mock_repo):
+            from app.services.user_service import UserService
+
+            service = UserService(mock_db)
+            data = UserSelfUpdate(full_name="Nama Baru", institution="UGM")
+            await service.update_self("user-1", data)
+
+        assert mock_user.full_name == "Nama Baru"
+        assert mock_user.full_name_overridden is True
+        assert mock_user.institution == "UGM"
+        mock_repo.update.assert_called_once_with(mock_user)
+
+    @pytest.mark.asyncio
+    async def test_update_self_nama_kosong_raise_400(self) -> None:
+        """update_self harus raise HTTPException 400 jika full_name kosong setelah trim."""
+        mock_db = AsyncMock()
+        mock_user = MagicMock()
+        mock_user.id = "user-1"
+
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_user
+
+        with patch("app.services.user_service.UserRepository", return_value=mock_repo):
+            from app.services.user_service import UserService
+
+            service = UserService(mock_db)
+            with pytest.raises(HTTPException) as exc_info:
+                await service.update_self("user-1", UserSelfUpdate(full_name="   "))
+
+        assert exc_info.value.status_code == 400
+        mock_repo.update.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_update_self_tanpa_full_name_tidak_mengubah_flag(self) -> None:
+        """update_self tidak mengubah full_name/flag jika full_name tidak dikirim."""
+        mock_db = AsyncMock()
+        mock_user = MagicMock()
+        mock_user.id = "user-1"
+        mock_user.full_name = "Nama Tetap"
+        mock_user.full_name_overridden = False
+
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_user
+        mock_repo.update.return_value = mock_user
+
+        with patch("app.services.user_service.UserRepository", return_value=mock_repo):
+            from app.services.user_service import UserService
+
+            service = UserService(mock_db)
+            await service.update_self("user-1", UserSelfUpdate(institution="ITS"))
+
+        assert mock_user.full_name == "Nama Tetap"
+        assert mock_user.full_name_overridden is False
+        assert mock_user.institution == "ITS"
+
+    @pytest.mark.asyncio
+    async def test_update_self_menetapkan_expertise_areas(self) -> None:
+        """update_self harus menetapkan bidang keahlian dari expertise_area_ids."""
+        mock_db = AsyncMock()
+        mock_user = MagicMock()
+        mock_user.id = "user-1"
+
+        area = MagicMock()
+        area.id = "area-1"
+
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_user
+        mock_repo.update.return_value = mock_user
+
+        mock_expertise_repo = AsyncMock()
+        mock_expertise_repo.get_by_ids.return_value = [area]
+
+        with (
+            patch("app.services.user_service.UserRepository", return_value=mock_repo),
+            patch(
+                "app.services.user_service.ExpertiseAreaRepository",
+                return_value=mock_expertise_repo,
+            ),
+        ):
+            from app.services.user_service import UserService
+
+            service = UserService(mock_db)
+            await service.update_self("user-1", UserSelfUpdate(expertise_area_ids=["area-1"]))
+
+        assert mock_user.expertise_areas == [area]

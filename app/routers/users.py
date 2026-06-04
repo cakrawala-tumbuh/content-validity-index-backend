@@ -7,7 +7,7 @@ from app.database import get_db
 from app.dependencies.auth import get_current_user, require_admin
 from app.models.user import User
 from app.schemas.common import MessageResponse
-from app.schemas.user import UserResponse, UserUpdate
+from app.schemas.user import UserResponse, UserSelfUpdate, UserUpdate
 from app.services.user_service import UserService
 from app.utils.activity_logger import log_activity
 
@@ -34,6 +34,51 @@ async def get_me(current_user: User = Depends(get_current_user)) -> UserResponse
         Profil pengguna saat ini.
     """
     return UserResponse.model_validate(current_user)
+
+
+@router.patch(
+    "/me",
+    response_model=UserResponse,
+    summary="Perbarui identitas pribadi sendiri",
+    description=(
+        "Memperbarui identitas pribadi pengguna yang sedang login: nama lengkap, "
+        "institusi, dan bidang keahlian. Nama lengkap yang diubah tidak akan "
+        "ditimpa oleh sinkronisasi Authentik pada login berikutnya."
+    ),
+    responses={
+        400: {"description": "Nama lengkap tidak boleh kosong."},
+        401: {"description": "Token tidak valid."},
+        403: {"description": "Akun tidak aktif."},
+    },
+)
+async def update_me(
+    data: UserSelfUpdate,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> UserResponse:
+    """Memperbarui identitas pribadi pengguna yang sedang login.
+
+    Args:
+        data: Data pembaruan identitas pribadi.
+        request: HTTP request yang sedang diproses.
+        current_user: Pengguna yang terautentikasi.
+        db: AsyncSession database.
+
+    Returns:
+        Profil pengguna yang sudah diperbarui.
+    """
+    service = UserService(db)
+    updated = await service.update_self(current_user.id, data)
+    await log_activity(
+        db=db,
+        action="update_self_profile",
+        request=request,
+        user_id=current_user.id,
+        resource_type="user",
+        resource_id=current_user.id,
+    )
+    return UserResponse.model_validate(updated)
 
 
 @router.get(

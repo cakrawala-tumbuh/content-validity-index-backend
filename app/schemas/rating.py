@@ -2,7 +2,30 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+#: Skor relevansi yang mewajibkan expert mengisi catatan/alasan.
+SCORES_REQUIRING_NOTES: tuple[int, ...] = (1, 2)
+
+#: Pesan error ketika catatan tidak diisi untuk skor relevansi rendah.
+NOTES_REQUIRED_MESSAGE: str = (
+    "Catatan wajib diisi untuk skor relevansi 1 (Tidak Relevan) atau 2 (Kurang Relevan)."
+)
+
+
+def is_notes_missing(relevance_score: int, notes: str | None) -> bool:
+    """Mengecek apakah catatan wajib namun tidak diisi untuk sebuah skor.
+
+    Args:
+        relevance_score: Skor relevansi item (1–4).
+        notes: Catatan yang diberikan expert (bisa None).
+
+    Returns:
+        True jika skor termasuk yang mewajibkan catatan tetapi catatan kosong.
+    """
+    if relevance_score not in SCORES_REQUIRING_NOTES:
+        return False
+    return not (notes and notes.strip())
 
 
 class RatingItem(BaseModel):
@@ -11,12 +34,26 @@ class RatingItem(BaseModel):
     Attributes:
         item_id: ID item yang dinilai.
         relevance_score: Skor relevansi 1–4.
-        notes: Catatan tambahan (opsional).
+        notes: Catatan tambahan. Wajib diisi jika skor 1 atau 2.
     """
 
     item_id: str
     relevance_score: int = Field(ge=1, le=4, description="Skor relevansi 1–4")
     notes: str | None = None
+
+    @model_validator(mode="after")
+    def _validate_notes_required(self) -> "RatingItem":
+        """Memvalidasi bahwa catatan diisi ketika skor relevansi 1 atau 2.
+
+        Returns:
+            Instance RatingItem yang sudah tervalidasi.
+
+        Raises:
+            ValueError: Jika skor 1/2 tetapi catatan kosong.
+        """
+        if is_notes_missing(self.relevance_score, self.notes):
+            raise ValueError(NOTES_REQUIRED_MESSAGE)
+        return self
 
 
 class RatingBulkCreate(BaseModel):
