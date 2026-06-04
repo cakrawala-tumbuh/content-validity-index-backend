@@ -129,6 +129,57 @@ class TestDomainServiceCreate:
         assert saved.theory_reference is None
 
     @pytest.mark.asyncio
+    async def test_create_menyimpan_background_color(self) -> None:
+        """create harus menyimpan warna latar hex ke model domain."""
+        mock_db = AsyncMock()
+        captured: list = []
+
+        async def capture_create(domain: object) -> object:
+            """Menangkap argumen yang diteruskan ke repo.create."""
+            captured.append(domain)
+            return domain
+
+        mock_repo = AsyncMock()
+        mock_repo.create.side_effect = capture_create
+
+        with patch(
+            "app.services.domain_service.DomainRepository",
+            return_value=mock_repo,
+        ):
+            from app.services.domain_service import DomainService
+
+            service = DomainService(mock_db)
+            data = DomainCreate(name="Kognitif", background_color="#FDE68A")
+            await service.create("instr-1", data)
+
+        assert captured[0].background_color == "#FDE68A"
+
+    @pytest.mark.asyncio
+    async def test_create_tanpa_background_color_default_none(self) -> None:
+        """create tanpa warna latar harus menyimpan nilai None."""
+        mock_db = AsyncMock()
+        captured: list = []
+
+        async def capture_create(domain: object) -> object:
+            """Menangkap argumen yang diteruskan ke repo.create."""
+            captured.append(domain)
+            return domain
+
+        mock_repo = AsyncMock()
+        mock_repo.create.side_effect = capture_create
+
+        with patch(
+            "app.services.domain_service.DomainRepository",
+            return_value=mock_repo,
+        ):
+            from app.services.domain_service import DomainService
+
+            service = DomainService(mock_db)
+            await service.create("instr-1", DomainCreate(name="Tanpa Warna"))
+
+        assert captured[0].background_color is None
+
+    @pytest.mark.asyncio
     async def test_create_menghasilkan_id_unik(self) -> None:
         """create harus meng-generate UUID sebagai id domain."""
         import re
@@ -412,6 +463,88 @@ class TestDomainServiceUpdate:
             await service.update("dom-1", "instr-1", DomainUpdate(construct_definition=None))
 
         assert mock_domain.construct_definition is None
+
+    @pytest.mark.asyncio
+    async def test_update_memperbarui_background_color(self) -> None:
+        """update harus memperbarui warna latar bila disertakan dalam request."""
+        mock_db = AsyncMock()
+        mock_domain = MagicMock()
+        mock_domain.id = "dom-1"
+        mock_domain.instrument_id = "instr-1"
+        mock_domain.background_color = "#FFFFFF"
+
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_domain
+        mock_repo.update.return_value = mock_domain
+
+        with patch("app.services.domain_service.DomainRepository", return_value=mock_repo):
+            from app.services.domain_service import DomainService
+
+            service = DomainService(mock_db)
+            await service.update("dom-1", "instr-1", DomainUpdate(background_color="#A7F3D0"))
+
+        assert mock_domain.background_color == "#A7F3D0"
+
+    @pytest.mark.asyncio
+    async def test_update_background_color_null_eksplisit_mengosongkan(self) -> None:
+        """update dengan background_color null eksplisit harus mengosongkan warna latar."""
+        mock_db = AsyncMock()
+        mock_domain = MagicMock()
+        mock_domain.id = "dom-1"
+        mock_domain.instrument_id = "instr-1"
+        mock_domain.background_color = "#A7F3D0"
+
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_domain
+        mock_repo.update.return_value = mock_domain
+
+        with patch("app.services.domain_service.DomainRepository", return_value=mock_repo):
+            from app.services.domain_service import DomainService
+
+            service = DomainService(mock_db)
+            await service.update("dom-1", "instr-1", DomainUpdate(background_color=None))
+
+        assert mock_domain.background_color is None
+
+    @pytest.mark.asyncio
+    async def test_update_background_color_tidak_disertakan_tidak_berubah(self) -> None:
+        """update tanpa background_color tidak boleh mengubah warna latar lama."""
+        mock_db = AsyncMock()
+        mock_domain = MagicMock()
+        mock_domain.id = "dom-1"
+        mock_domain.instrument_id = "instr-1"
+        mock_domain.name = "Dimensi"
+        mock_domain.background_color = "#FDE68A"
+
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_domain
+        mock_repo.update.return_value = mock_domain
+
+        with patch("app.services.domain_service.DomainRepository", return_value=mock_repo):
+            from app.services.domain_service import DomainService
+
+            service = DomainService(mock_db)
+            await service.update("dom-1", "instr-1", DomainUpdate(name="Nama Baru"))
+
+        assert mock_domain.background_color == "#FDE68A"
+
+
+class TestDomainSchemaValidation:
+    """Kumpulan test untuk validasi format warna hex pada schema domain."""
+
+    def test_background_color_hex_valid_diterima(self) -> None:
+        """Schema harus menerima warna hex 6 digit yang valid."""
+        data = DomainCreate(name="Dim", background_color="#FDE68A")
+        assert data.background_color == "#FDE68A"
+
+    def test_background_color_format_salah_ditolak(self) -> None:
+        """Schema harus menolak nilai warna yang bukan hex 6 digit."""
+        import pytest as _pytest
+        from pydantic import ValidationError
+
+        for invalid in ["FDE68A", "#FFF", "#GGGGGG", "merah", "#1234567"]:
+            with _pytest.raises(ValidationError):
+                DomainCreate(name="Dim", background_color=invalid)
 
 
 class TestDomainServiceDelete:

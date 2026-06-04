@@ -75,6 +75,7 @@ class DomainService:
             construct_definition=data.construct_definition,
             behavioral_indicator_example=data.behavioral_indicator_example,
             theory_reference=data.theory_reference,
+            background_color=data.background_color,
         )
         return await self.repo.create(domain)
 
@@ -104,6 +105,8 @@ class DomainService:
             domain.behavioral_indicator_example = data.behavioral_indicator_example
         if "theory_reference" in fields_set:
             domain.theory_reference = data.theory_reference
+        if "background_color" in fields_set:
+            domain.background_color = data.background_color
         return await self.repo.update(domain)
 
     async def delete(self, domain_id: str, instrument_id: str) -> None:

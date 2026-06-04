@@ -52,6 +52,11 @@ class Domain(Base):
         nullable=True,
         comment="Referensi teori dari kisi-kisi (kolom F)",
     )
+    background_color: Mapped[str | None] = mapped_column(
+        String(7),
+        nullable=True,
+        comment="Warna latar dimensi dalam format hex #RRGGBB untuk tabel penilaian",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )
