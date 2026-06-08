@@ -7,12 +7,13 @@ from app.database import get_db
 from app.dependencies.auth import get_current_user, require_admin
 from app.models.user import User
 from app.schemas.common import MessageResponse
-from app.schemas.cvi import CVIResult
+from app.schemas.cvi import CVIResult, InstrumentExpertRatingsResponse
 from app.schemas.domain import DomainCreate, DomainResponse, DomainUpdate
 from app.schemas.expert_assignment import AssignmentCreate, AssignmentResponse
 from app.schemas.instrument import InstrumentCreate, InstrumentResponse, InstrumentUpdate
 from app.schemas.item import ItemBulkCreate, ItemCreate, ItemResponse, ItemUpdate
 from app.services.cvi_service import CVIService
+from app.services.rating_service import RatingService
 from app.services.domain_service import DomainService
 from app.services.expert_assignment_service import ExpertAssignmentService
 from app.services.instrument_service import InstrumentService
@@ -713,6 +714,44 @@ async def delete_assignment(
         resource_id=assignment_id,
     )
     return MessageResponse(message=f"Assignment '{assignment_id}' berhasil dihapus.")
+
+
+# ────────────────────────────────────────────────────────────
+#  Expert Ratings (admin view)
+# ────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/{instrument_id}/expert-ratings",
+    response_model=InstrumentExpertRatingsResponse,
+    summary="Penilaian per expert",
+    description=(
+        "Mengambil penilaian setiap expert per item untuk sebuah instrumen. "
+        "Menampilkan skor, catatan, dan status penilaian masing-masing expert. "
+        "Item yang belum dinilai ditampilkan dengan skor None. Hanya admin."
+    ),
+    responses={
+        403: {"description": "Akses ditolak."},
+        404: {"description": "Instrumen tidak ditemukan."},
+    },
+)
+async def get_expert_ratings(
+    instrument_id: str,
+    _admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> InstrumentExpertRatingsResponse:
+    """Mengambil penilaian semua expert per item (admin only).
+
+    Args:
+        instrument_id: ID instrumen.
+        _admin: Dependency yang memvalidasi role admin.
+        db: AsyncSession database.
+
+    Returns:
+        Penilaian per expert lengkap dengan skor per item.
+    """
+    service = RatingService(db)
+    return await service.get_expert_ratings_for_instrument(instrument_id)
 
 
 # ────────────────────────────────────────────────────────────

@@ -7,8 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.rating import Rating
 from app.repositories.expert_assignment_repository import ExpertAssignmentRepository
+from app.repositories.instrument_repository import InstrumentRepository
 from app.repositories.item_repository import ItemRepository
 from app.repositories.rating_repository import RatingRepository
+from app.repositories.user_repository import UserRepository
+from app.schemas.cvi import ExpertRatingSummary, InstrumentExpertRatingsResponse, ItemRatingByExpert
 from app.schemas.rating import (
     NOTES_REQUIRED_MESSAGE,
     RatingBulkCreate,
@@ -34,6 +37,8 @@ class RatingService:
         self.repo = RatingRepository(db)
         self.assignment_repo = ExpertAssignmentRepository(db)
         self.item_repo = ItemRepository(db)
+        self.instrument_repo = InstrumentRepository(db)
+        self.user_repo = UserRepository(db)
 
     async def _validate_assignment_ownership(self, assignment_id: str, user_id: str) -> None:
         """Memvalidasi bahwa assignment dimiliki oleh user yang sedang login.
@@ -198,3 +203,77 @@ class RatingService:
                 detail=NOTES_REQUIRED_MESSAGE,
             )
         return await self.repo.update(rating)
+
+    async def get_expert_ratings_for_instrument(
+        self, instrument_id: str
+    ) -> InstrumentExpertRatingsResponse:
+        """Mengambil penilaian semua expert per item untuk sebuah instrumen (tampilan admin).
+
+        Setiap expert ditampilkan dengan daftar lengkap seluruh item instrumen,
+        termasuk item yang belum dinilai (relevance_score = None).
+
+        Args:
+            instrument_id: ID instrumen.
+
+        Returns:
+            Objek InstrumentExpertRatingsResponse berisi penilaian per expert.
+
+        Raises:
+            HTTPException: Jika instrumen tidak ditemukan (404).
+        """
+        instrument = await self.instrument_repo.get_by_id(instrument_id)
+        if not instrument:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Instrumen '{instrument_id}' tidak ditemukan.",
+            )
+
+        items = await self.item_repo.get_by_instrument(instrument_id)
+        assignments = await self.assignment_repo.get_by_instrument(instrument_id)
+
+        user_ids = [a.user_id for a in assignments]
+        users = await self.user_repo.get_by_ids(user_ids)
+        user_map = {u.id: u for u in users}
+
+        expert_summaries: list[ExpertRatingSummary] = []
+        for assignment in assignments:
+            ratings = await self.repo.get_by_assignment(assignment.id)
+            ratings_by_item = {r.item_id: r for r in ratings}
+
+            item_ratings: list[ItemRatingByExpert] = []
+            for item in items:
+                rating = ratings_by_item.get(item.id)
+                item_ratings.append(
+                    ItemRatingByExpert(
+                        item_id=item.id,
+                        sequence_number=item.sequence_number,
+                        content=item.content,
+                        domain_id=item.domain_id,
+                        relevance_score=rating.relevance_score if rating else None,
+                        notes=rating.notes if rating else None,
+                        is_relevant=(rating.relevance_score >= 3) if rating else None,
+                    )
+                )
+
+            user = user_map.get(assignment.user_id)
+            expert_summaries.append(
+                ExpertRatingSummary(
+                    assignment_id=assignment.id,
+                    user_id=assignment.user_id,
+                    expert_name=user.full_name if user else assignment.user_id,
+                    institution=user.institution if user else None,
+                    status=assignment.status,
+                    deadline=assignment.deadline,
+                    ratings=item_ratings,
+                )
+            )
+
+        expert_summaries.sort(key=lambda e: e.expert_name)
+
+        return InstrumentExpertRatingsResponse(
+            instrument_id=instrument_id,
+            instrument_name=instrument.name,
+            n_items=len(items),
+            n_experts=len(assignments),
+            experts=expert_summaries,
+        )

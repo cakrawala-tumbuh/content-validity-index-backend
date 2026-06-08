@@ -426,3 +426,249 @@ class TestRatingServiceUpdateSingle:
                 )
 
         assert exc_info.value.status_code == 403
+
+
+class TestRatingServiceGetExpertRatings:
+    """Kumpulan test untuk method RatingService.get_expert_ratings_for_instrument()."""
+
+    def _make_patches(
+        self,
+        instrument: object,
+        items: list,
+        assignments: list,
+        users: list,
+        ratings_per_assignment: dict,
+    ) -> tuple:
+        """Membuat mock repository lengkap untuk get_expert_ratings_for_instrument.
+
+        Args:
+            instrument: Mock instrumen (atau None jika tidak ditemukan).
+            items: Daftar mock item instrumen.
+            assignments: Daftar mock assignment expert.
+            users: Daftar mock user expert.
+            ratings_per_assignment: Dict {assignment_id: [mock_rating]}.
+
+        Returns:
+            Tuple (instrument_repo, item_repo, assignment_repo, user_repo, rating_repo).
+        """
+        mock_instrument_repo = AsyncMock()
+        mock_instrument_repo.get_by_id.return_value = instrument
+
+        mock_item_repo = AsyncMock()
+        mock_item_repo.get_by_instrument.return_value = items
+
+        mock_assignment_repo = AsyncMock()
+        mock_assignment_repo.get_by_instrument.return_value = assignments
+
+        mock_user_repo = AsyncMock()
+        mock_user_repo.get_by_ids.return_value = users
+
+        async def _get_ratings(assignment_id: str) -> list:
+            return ratings_per_assignment.get(assignment_id, [])
+
+        mock_rating_repo = AsyncMock()
+        mock_rating_repo.get_by_assignment.side_effect = _get_ratings
+
+        return (
+            mock_instrument_repo,
+            mock_item_repo,
+            mock_assignment_repo,
+            mock_user_repo,
+            mock_rating_repo,
+        )
+
+    @pytest.mark.asyncio
+    async def test_instrumen_tidak_ditemukan_raise_404(self) -> None:
+        """Harus raise 404 jika instrumen tidak ditemukan."""
+        mock_db = AsyncMock()
+        repos = self._make_patches(None, [], [], [], {})
+
+        with (
+            patch("app.services.rating_service.InstrumentRepository", return_value=repos[0]),
+            patch("app.services.rating_service.ItemRepository", return_value=repos[1]),
+            patch("app.services.rating_service.ExpertAssignmentRepository", return_value=repos[2]),
+            patch("app.services.rating_service.UserRepository", return_value=repos[3]),
+            patch("app.services.rating_service.RatingRepository", return_value=repos[4]),
+        ):
+            from app.services.rating_service import RatingService
+
+            service = RatingService(mock_db)
+            with pytest.raises(HTTPException) as exc_info:
+                await service.get_expert_ratings_for_instrument("nonexistent")
+        assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_tanpa_assignment_menghasilkan_experts_kosong(self) -> None:
+        """Instrumen tanpa assignment harus mengembalikan experts = []."""
+        mock_db = AsyncMock()
+        mock_instrument = MagicMock()
+        mock_instrument.id = "inst-1"
+        mock_instrument.name = "Instrumen Test"
+        repos = self._make_patches(mock_instrument, [], [], [], {})
+
+        with (
+            patch("app.services.rating_service.InstrumentRepository", return_value=repos[0]),
+            patch("app.services.rating_service.ItemRepository", return_value=repos[1]),
+            patch("app.services.rating_service.ExpertAssignmentRepository", return_value=repos[2]),
+            patch("app.services.rating_service.UserRepository", return_value=repos[3]),
+            patch("app.services.rating_service.RatingRepository", return_value=repos[4]),
+        ):
+            from app.services.rating_service import RatingService
+
+            service = RatingService(mock_db)
+            result = await service.get_expert_ratings_for_instrument("inst-1")
+
+        assert result.instrument_name == "Instrumen Test"
+        assert result.n_experts == 0
+        assert result.experts == []
+
+    @pytest.mark.asyncio
+    async def test_item_belum_dinilai_menghasilkan_skor_none(self) -> None:
+        """Item yang belum dinilai harus memiliki relevance_score dan is_relevant None."""
+        mock_db = AsyncMock()
+        mock_instrument = MagicMock()
+        mock_instrument.id = "inst-1"
+        mock_instrument.name = "Instrumen Test"
+
+        mock_item = MagicMock()
+        mock_item.id = "item-1"
+        mock_item.sequence_number = 1
+        mock_item.content = "Teks item satu"
+        mock_item.domain_id = None
+
+        mock_assignment = MagicMock()
+        mock_assignment.id = "assign-1"
+        mock_assignment.user_id = "user-1"
+        mock_assignment.status = "pending"
+        mock_assignment.deadline = None
+
+        mock_user = MagicMock()
+        mock_user.id = "user-1"
+        mock_user.full_name = "Dr. Ahli"
+        mock_user.institution = "Universitas X"
+
+        repos = self._make_patches(
+            mock_instrument, [mock_item], [mock_assignment], [mock_user], {"assign-1": []}
+        )
+
+        with (
+            patch("app.services.rating_service.InstrumentRepository", return_value=repos[0]),
+            patch("app.services.rating_service.ItemRepository", return_value=repos[1]),
+            patch("app.services.rating_service.ExpertAssignmentRepository", return_value=repos[2]),
+            patch("app.services.rating_service.UserRepository", return_value=repos[3]),
+            patch("app.services.rating_service.RatingRepository", return_value=repos[4]),
+        ):
+            from app.services.rating_service import RatingService
+
+            service = RatingService(mock_db)
+            result = await service.get_expert_ratings_for_instrument("inst-1")
+
+        expert = result.experts[0]
+        assert expert.expert_name == "Dr. Ahli"
+        assert expert.institution == "Universitas X"
+        item_rating = expert.ratings[0]
+        assert item_rating.relevance_score is None
+        assert item_rating.is_relevant is None
+
+    @pytest.mark.asyncio
+    async def test_item_dinilai_relevan_menghasilkan_is_relevant_true(self) -> None:
+        """Item dengan skor >= 3 harus menghasilkan is_relevant = True."""
+        mock_db = AsyncMock()
+        mock_instrument = MagicMock()
+        mock_instrument.id = "inst-1"
+        mock_instrument.name = "Instrumen Test"
+
+        mock_item = MagicMock()
+        mock_item.id = "item-1"
+        mock_item.sequence_number = 1
+        mock_item.content = "Teks item"
+        mock_item.domain_id = None
+
+        mock_assignment = MagicMock()
+        mock_assignment.id = "assign-1"
+        mock_assignment.user_id = "user-1"
+        mock_assignment.status = "completed"
+        mock_assignment.deadline = None
+
+        mock_user = MagicMock()
+        mock_user.id = "user-1"
+        mock_user.full_name = "Dr. Ahli"
+        mock_user.institution = None
+
+        mock_rating = MagicMock()
+        mock_rating.item_id = "item-1"
+        mock_rating.relevance_score = 4
+        mock_rating.notes = None
+
+        repos = self._make_patches(
+            mock_instrument, [mock_item], [mock_assignment], [mock_user], {"assign-1": [mock_rating]}
+        )
+
+        with (
+            patch("app.services.rating_service.InstrumentRepository", return_value=repos[0]),
+            patch("app.services.rating_service.ItemRepository", return_value=repos[1]),
+            patch("app.services.rating_service.ExpertAssignmentRepository", return_value=repos[2]),
+            patch("app.services.rating_service.UserRepository", return_value=repos[3]),
+            patch("app.services.rating_service.RatingRepository", return_value=repos[4]),
+        ):
+            from app.services.rating_service import RatingService
+
+            service = RatingService(mock_db)
+            result = await service.get_expert_ratings_for_instrument("inst-1")
+
+        item_rating = result.experts[0].ratings[0]
+        assert item_rating.relevance_score == 4
+        assert item_rating.is_relevant is True
+
+    @pytest.mark.asyncio
+    async def test_experts_diurutkan_berdasarkan_nama(self) -> None:
+        """Daftar expert harus diurutkan secara alfabet berdasarkan nama lengkap."""
+        mock_db = AsyncMock()
+        mock_instrument = MagicMock()
+        mock_instrument.id = "inst-1"
+        mock_instrument.name = "Instrumen Test"
+
+        mock_assignment_1 = MagicMock()
+        mock_assignment_1.id = "assign-1"
+        mock_assignment_1.user_id = "user-1"
+        mock_assignment_1.status = "completed"
+        mock_assignment_1.deadline = None
+
+        mock_assignment_2 = MagicMock()
+        mock_assignment_2.id = "assign-2"
+        mock_assignment_2.user_id = "user-2"
+        mock_assignment_2.status = "pending"
+        mock_assignment_2.deadline = None
+
+        mock_user_z = MagicMock()
+        mock_user_z.id = "user-1"
+        mock_user_z.full_name = "Zulkifli"
+        mock_user_z.institution = None
+
+        mock_user_a = MagicMock()
+        mock_user_a.id = "user-2"
+        mock_user_a.full_name = "Ahmad"
+        mock_user_a.institution = None
+
+        repos = self._make_patches(
+            mock_instrument,
+            [],
+            [mock_assignment_1, mock_assignment_2],
+            [mock_user_z, mock_user_a],
+            {},
+        )
+
+        with (
+            patch("app.services.rating_service.InstrumentRepository", return_value=repos[0]),
+            patch("app.services.rating_service.ItemRepository", return_value=repos[1]),
+            patch("app.services.rating_service.ExpertAssignmentRepository", return_value=repos[2]),
+            patch("app.services.rating_service.UserRepository", return_value=repos[3]),
+            patch("app.services.rating_service.RatingRepository", return_value=repos[4]),
+        ):
+            from app.services.rating_service import RatingService
+
+            service = RatingService(mock_db)
+            result = await service.get_expert_ratings_for_instrument("inst-1")
+
+        assert result.experts[0].expert_name == "Ahmad"
+        assert result.experts[1].expert_name == "Zulkifli"

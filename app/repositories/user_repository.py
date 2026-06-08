@@ -45,6 +45,20 @@ class UserRepository:
         result = await self.db.execute(select(User).where(User.email == email))
         return result.scalar_one_or_none()
 
+    async def get_by_ids(self, user_ids: list[str]) -> list[User]:
+        """Mengambil beberapa user sekaligus berdasarkan daftar ID.
+
+        Args:
+            user_ids: Daftar ID user yang akan diambil.
+
+        Returns:
+            Daftar User yang ditemukan (urutan tidak dijamin sama dengan input).
+        """
+        if not user_ids:
+            return []
+        result = await self.db.execute(select(User).where(User.id.in_(user_ids)))
+        return list(result.scalars().all())
+
     async def get_all(self, skip: int = 0, limit: int = 100) -> list[User]:
         """Mengambil semua user dengan pagination.
 

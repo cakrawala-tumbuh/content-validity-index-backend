@@ -1,5 +1,7 @@
 """Schema Pydantic untuk hasil kalkulasi CVI."""
 
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -77,3 +79,77 @@ class CVIResult(BaseModel):
     items: list[ItemCVIResult]
     s_cvi_ave: float = Field(ge=0.0, le=1.0)
     s_cvi_ua: float = Field(ge=0.0, le=1.0)
+
+
+class ItemRatingByExpert(BaseModel):
+    """Penilaian seorang expert untuk satu item.
+
+    Attributes:
+        item_id: ID item.
+        sequence_number: Nomor urut item dalam instrumen.
+        content: Teks konten item.
+        domain_id: ID domain/dimensi item, atau None jika tanpa domain.
+        relevance_score: Skor relevansi 1–4, atau None jika belum dinilai.
+        notes: Catatan expert, atau None.
+        is_relevant: True jika skor ≥ 3 (relevan), None jika belum dinilai.
+    """
+
+    item_id: str
+    sequence_number: int
+    content: str
+    domain_id: str | None
+    relevance_score: int | None
+    notes: str | None
+    is_relevant: bool | None
+
+
+class ExpertRatingSummary(BaseModel):
+    """Ringkasan penilaian seorang expert untuk sebuah instrumen.
+
+    Attributes:
+        assignment_id: ID assignment expert.
+        user_id: ID user expert.
+        expert_name: Nama lengkap expert.
+        institution: Institusi expert, atau None.
+        status: Status assignment (pending/in_progress/completed).
+        deadline: Batas waktu penilaian, atau None.
+        ratings: Daftar penilaian per item, terurut berdasarkan sequence_number.
+    """
+
+    assignment_id: str
+    user_id: str
+    expert_name: str
+    institution: str | None
+    status: str
+    deadline: datetime | None
+    ratings: list[ItemRatingByExpert]
+
+
+class InstrumentExpertRatingsResponse(BaseModel):
+    """Tampilan penilaian per expert untuk sebuah instrumen.
+
+    Attributes:
+        instrument_id: ID instrumen.
+        instrument_name: Nama instrumen.
+        n_items: Jumlah item dalam instrumen.
+        n_experts: Jumlah expert yang di-assign.
+        experts: Daftar penilaian per expert, terurut berdasarkan nama.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "instrument_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                "instrument_name": "YPII v3",
+                "n_items": 3,
+                "n_experts": 2,
+                "experts": [],
+            }
+        }
+    )
+
+    instrument_id: str
+    instrument_name: str
+    n_items: int
+    n_experts: int
+    experts: list[ExpertRatingSummary]
