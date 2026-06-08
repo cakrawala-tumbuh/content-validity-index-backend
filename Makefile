@@ -1,36 +1,30 @@
-VENV_DIR := .venv
-VENV_PYTHON := $(VENV_DIR)/bin/python
-VENV_PIP := $(VENV_DIR)/bin/pip
+IMAGE_NAME ?= $(shell basename $(CURDIR))-test
+DOCKER_RUN  = docker run --rm $(IMAGE_NAME)
 
-.DEFAULT_GOAL := ci
-.PHONY: install lint test ci clean
+.DEFAULT_GOAL := test
+.PHONY: build lint unit test clean help
 
-# Buat venv dan install dependensi (setara dengan setup di lint.yml)
-$(VENV_DIR)/.installed: pyproject.toml
-	python3 -m venv $(VENV_DIR)
-	$(VENV_PIP) install --upgrade pip
-	$(VENV_PIP) install ruff mypy
-	$(VENV_PIP) install -e ".[dev]"
-	touch $(VENV_DIR)/.installed
+build: ## Bangun image test (deps + tooling + source)
+	docker build -f Dockerfile.test -t $(IMAGE_NAME) .
 
-install: $(VENV_DIR)/.installed
+lint: build ## Jalankan linter (Ruff + mypy) di dalam container
+	$(DOCKER_RUN) sh -c "ruff check . && ruff format --check . && mypy app/"
 
-# Sama dengan .github/workflows/lint.yml
-lint: $(VENV_DIR)/.installed
-	$(VENV_DIR)/bin/ruff check . && $(VENV_DIR)/bin/ruff format --check .
-	$(VENV_DIR)/bin/mypy app/
+unit: build ## Jalankan unit test (pytest) di dalam container
+	docker run --rm \
+		-e DATABASE_URL="sqlite+aiosqlite:///:memory:" \
+		-e AUTHENTIK_ISSUER_URL="https://authentik.test/application/o/cvi/" \
+		-e AUTHENTIK_ADMIN_GROUP="cvi-admin" \
+		-e AUTHENTIK_EXPERT_GROUP="cvi-expert" \
+		-e APP_ENV="testing" \
+		-e 'CORS_ORIGINS=["http://localhost:3000"]' \
+		$(IMAGE_NAME) python -m pytest tests/ -v
 
-# Sama dengan .github/workflows/test.yml
-test:
-	docker build -t cvi-backend:test .
-	docker compose -f docker-compose.test.yml up \
-		--build \
-		--abort-on-container-exit \
-		--exit-code-from test
-	docker compose -f docker-compose.test.yml down --volumes
+test: lint unit ## Gate lengkap = lint + unit (dipakai lokal & CI)
 
-ci: lint test
+clean: ## Hapus image test
+	-docker rmi $(IMAGE_NAME)
 
-clean:
-	rm -rf $(VENV_DIR)
-	docker compose -f docker-compose.test.yml down --volumes --rmi local 2>/dev/null || true
+help: ## Tampilkan daftar target
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
+		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-8s\033[0m %s\n", $$1, $$2}'

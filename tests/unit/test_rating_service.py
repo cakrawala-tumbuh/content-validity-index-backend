@@ -601,7 +601,11 @@ class TestRatingServiceGetExpertRatings:
         mock_rating.notes = None
 
         repos = self._make_patches(
-            mock_instrument, [mock_item], [mock_assignment], [mock_user], {"assign-1": [mock_rating]}
+            mock_instrument,
+            [mock_item],
+            [mock_assignment],
+            [mock_user],
+            {"assign-1": [mock_rating]},
         )
 
         with (

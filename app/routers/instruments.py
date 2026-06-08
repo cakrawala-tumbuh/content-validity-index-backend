@@ -13,11 +13,11 @@ from app.schemas.expert_assignment import AssignmentCreate, AssignmentResponse
 from app.schemas.instrument import InstrumentCreate, InstrumentResponse, InstrumentUpdate
 from app.schemas.item import ItemBulkCreate, ItemCreate, ItemResponse, ItemUpdate
 from app.services.cvi_service import CVIService
-from app.services.rating_service import RatingService
 from app.services.domain_service import DomainService
 from app.services.expert_assignment_service import ExpertAssignmentService
 from app.services.instrument_service import InstrumentService
 from app.services.item_service import ItemService
+from app.services.rating_service import RatingService
 from app.utils.activity_logger import log_activity
 from app.utils.excel_exporter import generate_cvi_excel
 

@@ -14,7 +14,7 @@ FROM python:3.11-slim AS test
 WORKDIR /app
 
 COPY --from=builder /install /usr/local
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md .ruff.toml mypy.ini ./
 COPY app/ ./app/
 COPY tests/ ./tests/
 COPY alembic/ ./alembic/
