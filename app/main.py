@@ -115,6 +115,7 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
 from app.routers import (  # noqa: E402
     activity_logs,
     auth,
+    backup,
     expertise_areas,
     instruments,
     ratings,
@@ -127,6 +128,7 @@ app.include_router(expertise_areas.router, prefix="/api/v1")
 app.include_router(instruments.router, prefix="/api/v1")
 app.include_router(ratings.router, prefix="/api/v1")
 app.include_router(activity_logs.router, prefix="/api/v1")
+app.include_router(backup.router, prefix="/api/v1")
 
 
 @app.get(
