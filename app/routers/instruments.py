@@ -9,7 +9,7 @@ from app.models.user import User
 from app.schemas.common import MessageResponse
 from app.schemas.cvi import CVIResult, InstrumentExpertRatingsResponse
 from app.schemas.domain import DomainCreate, DomainResponse, DomainUpdate
-from app.schemas.expert_assignment import AssignmentCreate, AssignmentResponse
+from app.schemas.expert_assignment import AssignmentCreate, AssignmentResponse, RevisionResult
 from app.schemas.instrument import InstrumentCreate, InstrumentResponse, InstrumentUpdate
 from app.schemas.item import ItemBulkCreate, ItemCreate, ItemResponse, ItemUpdate
 from app.services.cvi_service import CVIService
@@ -714,6 +714,63 @@ async def delete_assignment(
         resource_id=assignment_id,
     )
     return MessageResponse(message=f"Assignment '{assignment_id}' berhasil dihapus.")
+
+
+@router.post(
+    "/{instrument_id}/assignments/{assignment_id}/revise",
+    response_model=RevisionResult,
+    status_code=status.HTTP_201_CREATED,
+    summary="Arsipkan evaluasi dan buat revisi baru",
+    description=(
+        "Mengarsipkan assignment lama tanpa menghapus datanya, lalu membuat assignment "
+        "revisi baru dengan salinan semua penilaian sebelumnya. Expert merevisi di "
+        "assignment baru; kalkulasi CVI menggunakan assignment terbaru (non-archived). "
+        "Hanya admin."
+    ),
+    responses={
+        400: {"description": "Assignment sudah berstatus archived."},
+        403: {"description": "Akses ditolak, diperlukan role admin."},
+        404: {"description": "Assignment tidak ditemukan."},
+    },
+)
+async def revise_assignment(
+    instrument_id: str,
+    assignment_id: str,
+    request: Request,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> RevisionResult:
+    """Mengarsipkan evaluasi dan membuat revisi baru (admin only).
+
+    Args:
+        instrument_id: ID instrumen (untuk konteks dan logging).
+        assignment_id: ID assignment yang akan diarsipkan.
+        request: HTTP request.
+        admin: Admin yang memicu pengarsipan.
+        db: AsyncSession database.
+
+    Returns:
+        RevisionResult berisi assignment lama (archived) dan assignment baru.
+    """
+    service = ExpertAssignmentService(db)
+    archived, new_assignment = await service.archive_and_revise(assignment_id, archived_by=admin.id)
+    await log_activity(
+        db=db,
+        action="revise_assignment",
+        request=request,
+        user_id=admin.id,
+        resource_type="expert_assignment",
+        resource_id=assignment_id,
+        metadata={
+            "archived_assignment_id": archived.id,
+            "new_assignment_id": new_assignment.id,
+            "revision_number": new_assignment.revision_number,
+        },
+    )
+    return RevisionResult(
+        archived_assignment=AssignmentResponse.model_validate(archived),
+        new_assignment=AssignmentResponse.model_validate(new_assignment),
+    )
 
 
 # ────────────────────────────────────────────────────────────

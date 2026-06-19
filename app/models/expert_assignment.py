@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, func, inspect
+from sqlalchemy import DateTime, ForeignKey, Integer, String, func, inspect
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -20,6 +20,7 @@ class ExpertAssignment(Base):
         - pending: Expert belum mulai memberikan penilaian.
         - in_progress: Expert sedang dalam proses penilaian.
         - completed: Expert telah menyelesaikan semua penilaian.
+        - archived: Assignment diarsipkan; tidak digunakan dalam kalkulasi CVI.
     """
 
     __tablename__ = "expert_assignments"
@@ -51,7 +52,20 @@ class ExpertAssignment(Base):
         String(20),
         nullable=False,
         default="pending",
-        comment="Status: pending | in_progress | completed",
+        comment="Status: pending | in_progress | completed | archived",
+    )
+    previous_assignment_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("expert_assignments.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="ID assignment sebelumnya yang diarsipkan (untuk tracking riwayat revisi).",
+    )
+    revision_number: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+        comment="Nomor revisi. Dimulai dari 1; bertambah setiap kali assignment diarsipkan.",
     )
     assigned_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()

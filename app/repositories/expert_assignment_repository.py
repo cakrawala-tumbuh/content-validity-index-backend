@@ -35,18 +35,22 @@ class ExpertAssignmentRepository:
         )
         return result.scalar_one_or_none()
 
-    async def get_by_instrument(self, instrument_id: str) -> list[ExpertAssignment]:
+    async def get_by_instrument(
+        self, instrument_id: str, include_archived: bool = True
+    ) -> list[ExpertAssignment]:
         """Mengambil semua assignment untuk sebuah instrumen.
 
         Args:
             instrument_id: ID instrumen.
+            include_archived: Jika False, hanya kembalikan assignment non-archived.
 
         Returns:
             Daftar ExpertAssignment untuk instrumen tersebut.
         """
-        result = await self.db.execute(
-            select(ExpertAssignment).where(ExpertAssignment.instrument_id == instrument_id)
-        )
+        query = select(ExpertAssignment).where(ExpertAssignment.instrument_id == instrument_id)
+        if not include_archived:
+            query = query.where(ExpertAssignment.status != "archived")
+        result = await self.db.execute(query)
         return list(result.scalars().all())
 
     async def get_by_user(self, user_id: str) -> list[ExpertAssignment]:
@@ -66,19 +70,23 @@ class ExpertAssignmentRepository:
     async def get_by_instrument_and_user(
         self, instrument_id: str, user_id: str
     ) -> ExpertAssignment | None:
-        """Mengambil assignment berdasarkan instrumen dan user.
+        """Mengambil assignment aktif (non-archived) berdasarkan instrumen dan user.
+
+        Hanya mengembalikan assignment yang belum diarsipkan; digunakan untuk mengecek
+        apakah expert sudah memiliki assignment aktif sebelum membuat assignment baru.
 
         Args:
             instrument_id: ID instrumen.
             user_id: ID expert.
 
         Returns:
-            Instance ExpertAssignment jika ditemukan, None jika tidak.
+            Instance ExpertAssignment aktif jika ditemukan, None jika tidak.
         """
         result = await self.db.execute(
             select(ExpertAssignment).where(
                 ExpertAssignment.instrument_id == instrument_id,
                 ExpertAssignment.user_id == user_id,
+                ExpertAssignment.status != "archived",
             )
         )
         return result.scalar_one_or_none()

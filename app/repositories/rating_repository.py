@@ -64,20 +64,26 @@ class RatingRepository:
         return result.scalar_one_or_none()
 
     async def get_by_instrument(self, instrument_id: str) -> list[Rating]:
-        """Mengambil semua rating untuk sebuah instrumen (dari semua expert).
+        """Mengambil semua rating aktif untuk sebuah instrumen (dari semua expert).
+
+        Hanya mengembalikan rating dari assignment yang tidak diarsipkan, sehingga
+        kalkulasi CVI selalu didasarkan pada penilaian terbaru.
 
         Args:
             instrument_id: ID instrumen.
 
         Returns:
-            Daftar Rating untuk instrumen tersebut.
+            Daftar Rating dari assignment non-archived untuk instrumen tersebut.
         """
         from app.models.expert_assignment import ExpertAssignment
 
         result = await self.db.execute(
             select(Rating)
             .join(ExpertAssignment, ExpertAssignment.id == Rating.assignment_id)
-            .where(ExpertAssignment.instrument_id == instrument_id)
+            .where(
+                ExpertAssignment.instrument_id == instrument_id,
+                ExpertAssignment.status != "archived",
+            )
         )
         return list(result.scalars().all())
 

@@ -140,6 +140,7 @@ class TestExpertAssignmentInstrumentName:
             user_id="expert-1",
             assigned_by="admin-1",
             status="pending",
+            revision_number=1,
             assigned_at=now,
             updated_at=now,
             instrument=instrument,

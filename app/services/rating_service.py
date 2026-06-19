@@ -229,7 +229,9 @@ class RatingService:
             )
 
         items = await self.item_repo.get_by_instrument(instrument_id)
-        assignments = await self.assignment_repo.get_by_instrument(instrument_id)
+        assignments = await self.assignment_repo.get_by_instrument(
+            instrument_id, include_archived=False
+        )
 
         user_ids = [a.user_id for a in assignments]
         users = await self.user_repo.get_by_ids(user_ids)

@@ -36,7 +36,9 @@ class AssignmentResponse(BaseModel):
         user_id: ID expert.
         assigned_by: ID admin yang melakukan assign.
         deadline: Batas waktu penilaian.
-        status: Status assignment (pending/in_progress/completed).
+        status: Status assignment (pending/in_progress/completed/archived).
+        previous_assignment_id: ID assignment sebelumnya yang diarsipkan (None jika bukan revisi).
+        revision_number: Nomor revisi dimulai dari 1.
         assigned_at: Waktu penugasan.
         updated_at: Waktu terakhir diperbarui.
     """
@@ -51,7 +53,9 @@ class AssignmentResponse(BaseModel):
                 "user_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
                 "assigned_by": "f6a7b8c9-d0e1-2345-fab6-789012345678",
                 "deadline": "2026-06-30T23:59:59",
-                "status": "pending",
+                "status": "in_progress",
+                "previous_assignment_id": None,
+                "revision_number": 1,
                 "assigned_at": "2026-05-01T09:00:00",
                 "updated_at": "2026-05-01T09:00:00",
             }
@@ -65,5 +69,37 @@ class AssignmentResponse(BaseModel):
     assigned_by: str
     deadline: datetime | None
     status: str
+    previous_assignment_id: str | None = None
+    revision_number: int = 1
     assigned_at: datetime
     updated_at: datetime
+
+
+class RevisionResult(BaseModel):
+    """Schema response untuk operasi pengarsipan dan pembuatan revisi assignment.
+
+    Attributes:
+        archived_assignment: Assignment lama yang telah diarsipkan.
+        new_assignment: Assignment baru dengan salinan isian sebelumnya.
+    """
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "archived_assignment": {
+                    "id": "d4e5f6a7-b8c9-0123-defa-234567890123",
+                    "status": "archived",
+                    "revision_number": 1,
+                },
+                "new_assignment": {
+                    "id": "e5f6a7b8-c9d0-1234-efab-345678901234",
+                    "status": "in_progress",
+                    "previous_assignment_id": "d4e5f6a7-b8c9-0123-defa-234567890123",
+                    "revision_number": 2,
+                },
+            }
+        }
+    )
+
+    archived_assignment: AssignmentResponse
+    new_assignment: AssignmentResponse
