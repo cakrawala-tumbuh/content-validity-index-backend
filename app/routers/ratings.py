@@ -135,6 +135,55 @@ async def bulk_submit_ratings(
     return [RatingResponse.model_validate(r) for r in ratings]
 
 
+@router.post(
+    "/assignments/{assignment_id}/reopen",
+    response_model=AssignmentResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Buka kembali assignment yang sudah selesai",
+    description=(
+        "Mengubah status assignment dari 'completed' menjadi 'in_progress' "
+        "sehingga expert dapat merevisi penilaian yang sudah dikirimkan. "
+        "Hanya expert pemilik assignment yang dapat melakukan reopen."
+    ),
+    responses={
+        400: {"description": "Assignment bukan dalam status 'completed'."},
+        403: {"description": "Akses ditolak atau bukan expert yang di-assign."},
+        404: {"description": "Assignment tidak ditemukan."},
+    },
+)
+async def reopen_assignment(
+    assignment_id: str,
+    request: Request,
+    current_user: User = Depends(require_expert),
+    db: AsyncSession = Depends(get_db),
+) -> AssignmentResponse:
+    """Membuka kembali assignment yang sudah selesai untuk diedit ulang.
+
+    Args:
+        assignment_id: ID assignment yang akan dibuka kembali.
+        request: HTTP request.
+        current_user: Expert yang meminta reopen.
+        db: AsyncSession database.
+
+    Returns:
+        Data assignment dengan status yang sudah diperbarui.
+    """
+    service = ExpertAssignmentService(db)
+    assignment = await service.reopen(
+        assignment_id=assignment_id,
+        user_id=current_user.id,
+    )
+    await log_activity(
+        db=db,
+        action="reopen_assignment",
+        request=request,
+        user_id=current_user.id,
+        resource_type="expert_assignment",
+        resource_id=assignment_id,
+    )
+    return AssignmentResponse.model_validate(assignment)
+
+
 @router.patch(
     "/assignments/{assignment_id}/ratings/{rating_id}",
     response_model=RatingResponse,

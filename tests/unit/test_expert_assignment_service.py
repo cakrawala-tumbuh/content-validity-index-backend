@@ -436,3 +436,154 @@ class TestExpertAssignmentServiceDelete:
                 await service.delete("nonexistent")
 
         assert exc_info.value.status_code == 404
+
+
+class TestExpertAssignmentServiceReopen:
+    """Kumpulan test untuk method ExpertAssignmentService.reopen()."""
+
+    @pytest.mark.asyncio
+    async def test_reopen_assignment_completed_berhasil(self) -> None:
+        """reopen harus mengubah status dari 'completed' menjadi 'in_progress'."""
+        mock_db = AsyncMock()
+        mock_assignment = MagicMock()
+        mock_assignment.id = "assign-1"
+        mock_assignment.user_id = "expert-1"
+        mock_assignment.status = "completed"
+
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_assignment
+        mock_repo.update.return_value = mock_assignment
+
+        with (
+            patch(
+                "app.services.expert_assignment_service.ExpertAssignmentRepository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.services.expert_assignment_service.UserRepository",
+                return_value=AsyncMock(),
+            ),
+        ):
+            from app.services.expert_assignment_service import ExpertAssignmentService
+
+            service = ExpertAssignmentService(mock_db)
+            result = await service.reopen("assign-1", "expert-1")
+
+        assert mock_assignment.status == "in_progress"
+        mock_repo.update.assert_called_once_with(mock_assignment)
+        assert result is mock_assignment
+
+    @pytest.mark.asyncio
+    async def test_reopen_assignment_tidak_ditemukan_raise_404(self) -> None:
+        """reopen harus raise HTTPException 404 jika assignment tidak ditemukan."""
+        mock_db = AsyncMock()
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = None
+
+        with (
+            patch(
+                "app.services.expert_assignment_service.ExpertAssignmentRepository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.services.expert_assignment_service.UserRepository",
+                return_value=AsyncMock(),
+            ),
+        ):
+            from app.services.expert_assignment_service import ExpertAssignmentService
+
+            service = ExpertAssignmentService(mock_db)
+            with pytest.raises(HTTPException) as exc_info:
+                await service.reopen("nonexistent", "expert-1")
+
+        assert exc_info.value.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_reopen_assignment_bukan_pemilik_raise_403(self) -> None:
+        """reopen harus raise HTTPException 403 jika user bukan pemilik assignment."""
+        mock_db = AsyncMock()
+        mock_assignment = MagicMock()
+        mock_assignment.id = "assign-1"
+        mock_assignment.user_id = "expert-lain"
+        mock_assignment.status = "completed"
+
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_assignment
+
+        with (
+            patch(
+                "app.services.expert_assignment_service.ExpertAssignmentRepository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.services.expert_assignment_service.UserRepository",
+                return_value=AsyncMock(),
+            ),
+        ):
+            from app.services.expert_assignment_service import ExpertAssignmentService
+
+            service = ExpertAssignmentService(mock_db)
+            with pytest.raises(HTTPException) as exc_info:
+                await service.reopen("assign-1", "expert-1")
+
+        assert exc_info.value.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_reopen_assignment_status_pending_raise_400(self) -> None:
+        """reopen harus raise HTTPException 400 jika status bukan 'completed'."""
+        mock_db = AsyncMock()
+        mock_assignment = MagicMock()
+        mock_assignment.id = "assign-1"
+        mock_assignment.user_id = "expert-1"
+        mock_assignment.status = "pending"
+
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_assignment
+
+        with (
+            patch(
+                "app.services.expert_assignment_service.ExpertAssignmentRepository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.services.expert_assignment_service.UserRepository",
+                return_value=AsyncMock(),
+            ),
+        ):
+            from app.services.expert_assignment_service import ExpertAssignmentService
+
+            service = ExpertAssignmentService(mock_db)
+            with pytest.raises(HTTPException) as exc_info:
+                await service.reopen("assign-1", "expert-1")
+
+        assert exc_info.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_reopen_assignment_status_in_progress_raise_400(self) -> None:
+        """reopen harus raise HTTPException 400 jika status 'in_progress'."""
+        mock_db = AsyncMock()
+        mock_assignment = MagicMock()
+        mock_assignment.id = "assign-1"
+        mock_assignment.user_id = "expert-1"
+        mock_assignment.status = "in_progress"
+
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_assignment
+
+        with (
+            patch(
+                "app.services.expert_assignment_service.ExpertAssignmentRepository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.services.expert_assignment_service.UserRepository",
+                return_value=AsyncMock(),
+            ),
+        ):
+            from app.services.expert_assignment_service import ExpertAssignmentService
+
+            service = ExpertAssignmentService(mock_db)
+            with pytest.raises(HTTPException) as exc_info:
+                await service.reopen("assign-1", "expert-1")
+
+        assert exc_info.value.status_code == 400

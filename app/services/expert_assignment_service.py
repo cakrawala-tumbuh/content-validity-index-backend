@@ -114,6 +114,42 @@ class ExpertAssignmentService:
         )
         return await self.repo.create(assignment)
 
+    async def reopen(self, assignment_id: str, user_id: str) -> ExpertAssignment:
+        """Membuka kembali assignment yang sudah selesai untuk diedit ulang.
+
+        Mengubah status assignment dari ``completed`` menjadi ``in_progress``
+        sehingga expert dapat merevisi penilaiannya.
+
+        Args:
+            assignment_id: ID assignment yang akan dibuka kembali.
+            user_id: ID expert yang meminta reopen.
+
+        Returns:
+            Instance ExpertAssignment dengan status yang sudah diperbarui.
+
+        Raises:
+            HTTPException: Jika assignment tidak ditemukan (404), user bukan pemilik (403),
+                           atau status bukan ``completed`` (400).
+        """
+        assignment = await self.get_by_id(assignment_id)
+
+        if assignment.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Anda tidak memiliki akses ke assignment ini.",
+            )
+
+        if assignment.status != "completed":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Hanya assignment dengan status 'completed' yang dapat dibuka kembali."
+                ),
+            )
+
+        assignment.status = "in_progress"
+        return await self.repo.update(assignment)
+
     async def delete(self, assignment_id: str) -> None:
         """Membatalkan penugasan expert.
 
