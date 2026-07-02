@@ -20,6 +20,7 @@ from app.services.item_service import ItemService
 from app.services.rating_service import RatingService
 from app.utils.activity_logger import log_activity
 from app.utils.excel_exporter import generate_cvi_excel
+from app.utils.pdf_exporter import generate_cvi_pdf
 
 router = APIRouter(prefix="/instruments", tags=["Instruments"])
 
@@ -988,5 +989,55 @@ async def export_cvi_excel(
     return Response(
         content=excel_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get(
+    "/{instrument_id}/cvi/export/pdf",
+    summary="Ekspor hasil CVI ke PDF",
+    description=(
+        "Mengunduh hasil kalkulasi CVI sebuah instrumen dalam format PDF. Berkas berisi "
+        "hanya hasil CVI (I-CVI per item, S-CVI/Ave, S-CVI/UA). Hanya admin."
+    ),
+    responses={
+        200: {"content": {"application/pdf": {}}},
+        400: {"description": "Belum ada penilaian."},
+        403: {"description": "Akses ditolak."},
+        404: {"description": "Instrumen tidak ditemukan."},
+    },
+)
+async def export_cvi_pdf(
+    instrument_id: str,
+    request: Request,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Mengekspor hasil CVI sebuah instrumen ke berkas PDF (admin only).
+
+    Args:
+        instrument_id: ID instrumen yang hasil CVI-nya diekspor.
+        request: HTTP request (untuk activity logging).
+        admin: Admin yang memicu ekspor.
+        db: AsyncSession database.
+
+    Returns:
+        Response berisi berkas PDF sebagai lampiran unduhan.
+    """
+    cvi_service = CVIService(db)
+    result = await cvi_service.calculate(instrument_id)
+    pdf_bytes = generate_cvi_pdf(result)
+    await log_activity(
+        db=db,
+        action="export_cvi_pdf",
+        request=request,
+        user_id=admin.id,
+        resource_type="instrument",
+        resource_id=instrument_id,
+    )
+    filename = f"CVI_{result.instrument_name.replace(' ', '_')}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

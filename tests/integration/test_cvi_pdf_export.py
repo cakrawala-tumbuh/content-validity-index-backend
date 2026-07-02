@@ -1,0 +1,138 @@
+"""Integration test untuk pdf_exporter dan endpoint ekspor CVI ke PDF."""
+
+from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.dependencies.auth import require_admin
+from app.main import app
+from app.schemas.cvi import CVIResult, ItemCVIResult
+from app.schemas.expert_assignment import AssignmentCreate
+from app.schemas.rating import RatingBulkCreate, RatingItem
+from app.services.expert_assignment_service import ExpertAssignmentService
+from app.services.item_service import ItemService
+from app.services.rating_service import RatingService
+from app.utils.pdf_exporter import generate_cvi_pdf
+
+from .test_rating_cvi import _setup_instrument_with_items
+
+
+class TestPdfExporter:
+    """Kumpulan test untuk generate_cvi_pdf."""
+
+    def test_generate_pdf_menghasilkan_bytes(self) -> None:
+        """generate_cvi_pdf harus menghasilkan bytes PDF yang valid (tidak kosong)."""
+        result = CVIResult(
+            instrument_id="instr-1",
+            instrument_name="Instrumen Test",
+            n_experts=3,
+            n_items=2,
+            items=[
+                ItemCVIResult(
+                    item_id="item-1",
+                    sequence_number=1,
+                    content="Pertanyaan pertama",
+                    domain_id="dom-1",
+                    n_experts=3,
+                    n_relevant=3,
+                    i_cvi=1.0,
+                    is_valid=True,
+                ),
+                ItemCVIResult(
+                    item_id="item-2",
+                    sequence_number=2,
+                    content="Pertanyaan kedua",
+                    domain_id=None,
+                    n_experts=3,
+                    n_relevant=2,
+                    i_cvi=0.6667,
+                    is_valid=False,
+                ),
+            ],
+            s_cvi_ave=0.8334,
+            s_cvi_ua=0.5,
+        )
+        pdf_bytes = generate_cvi_pdf(result)
+        assert isinstance(pdf_bytes, bytes)
+        # magic bytes berkas PDF
+        assert pdf_bytes[:4] == b"%PDF"
+
+    def test_generate_pdf_instrumen_tanpa_item(self) -> None:
+        """generate_cvi_pdf harus tetap berjalan meski tidak ada item."""
+        result = CVIResult(
+            instrument_id="instr-2",
+            instrument_name="Kosong",
+            n_experts=0,
+            n_items=0,
+            items=[],
+            s_cvi_ave=0.0,
+            s_cvi_ua=0.0,
+        )
+        pdf_bytes = generate_cvi_pdf(result)
+        assert len(pdf_bytes) > 0
+        assert pdf_bytes[:4] == b"%PDF"
+
+
+class TestExportCVIPdfEndpoint:
+    """Kumpulan test untuk endpoint GET /instruments/{id}/cvi/export/pdf."""
+
+    async def test_export_pdf_mengembalikan_berkas(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        """Endpoint harus mengembalikan 200 dengan berkas PDF setelah ada penilaian."""
+        admin, expert, instrument_id = await _setup_instrument_with_items(db, "pdf1")
+
+        assign_service = ExpertAssignmentService(db)
+        assignment = await assign_service.create(
+            instrument_id, AssignmentCreate(user_id=expert.id), assigned_by=admin.id
+        )
+
+        item_service = ItemService(db)
+        items = await item_service.get_by_instrument(instrument_id)
+
+        rating_service = RatingService(db)
+        await rating_service.bulk_submit(
+            assignment.id,
+            expert.id,
+            RatingBulkCreate(
+                ratings=[RatingItem(item_id=item.id, relevance_score=4) for item in items]
+            ),
+        )
+
+        app.dependency_overrides[require_admin] = lambda: admin
+        try:
+            resp = await client.get(f"/api/v1/instruments/{instrument_id}/cvi/export/pdf")
+        finally:
+            app.dependency_overrides.pop(require_admin, None)
+
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "application/pdf"
+        assert resp.content[:4] == b"%PDF"
+        assert "attachment" in resp.headers["content-disposition"]
+
+    async def test_export_pdf_tanpa_penilaian_raise_400(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        """Endpoint harus mengembalikan 400 jika instrumen belum ada penilaian."""
+        admin, _, instrument_id = await _setup_instrument_with_items(db, "pdf2")
+
+        app.dependency_overrides[require_admin] = lambda: admin
+        try:
+            resp = await client.get(f"/api/v1/instruments/{instrument_id}/cvi/export/pdf")
+        finally:
+            app.dependency_overrides.pop(require_admin, None)
+
+        assert resp.status_code == 400
+
+    async def test_export_pdf_instrumen_tidak_ada_raise_404(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        """Endpoint harus mengembalikan 404 jika instrumen tidak ditemukan."""
+        admin, _, _ = await _setup_instrument_with_items(db, "pdf3")
+
+        app.dependency_overrides[require_admin] = lambda: admin
+        try:
+            resp = await client.get("/api/v1/instruments/nonexistent/cvi/export/pdf")
+        finally:
+            app.dependency_overrides.pop(require_admin, None)
+
+        assert resp.status_code == 404
