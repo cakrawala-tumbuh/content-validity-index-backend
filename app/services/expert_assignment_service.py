@@ -151,6 +151,42 @@ class ExpertAssignmentService:
         assignment.status = "in_progress"
         return await self.repo.update(assignment)
 
+    async def set_active(self, assignment_id: str, is_active: bool) -> ExpertAssignment:
+        """Mengaktifkan atau menonaktifkan penilaian sebuah assignment.
+
+        Menonaktifkan (is_active=False) membuat penilaian expert tidak diperhitungkan
+        dalam kalkulasi CVI tanpa menghapus datanya. Mengaktifkan kembali
+        (is_active=True) mengembalikan penilaian ke dalam perhitungan.
+
+        Args:
+            assignment_id: ID assignment yang akan diubah.
+            is_active: Nilai target; True untuk aktif, False untuk nonaktif.
+
+        Returns:
+            Instance ExpertAssignment dengan is_active yang sudah diperbarui.
+
+        Raises:
+            HTTPException: Jika assignment tidak ditemukan (404), berstatus archived (400),
+                           atau sudah berada pada kondisi yang diminta (400).
+        """
+        assignment = await self.get_by_id(assignment_id)
+
+        if assignment.status == "archived":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Assignment berstatus archived tidak dapat diaktifkan/dinonaktifkan.",
+            )
+
+        if assignment.is_active == is_active:
+            state = "aktif" if is_active else "nonaktif"
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Assignment sudah berstatus {state}.",
+            )
+
+        assignment.is_active = is_active
+        return await self.repo.update(assignment)
+
     async def delete(self, assignment_id: str) -> None:
         """Membatalkan penugasan expert.
 

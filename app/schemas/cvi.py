@@ -112,6 +112,8 @@ class ExpertRatingSummary(BaseModel):
         expert_name: Nama lengkap expert.
         institution: Institusi expert, atau None.
         status: Status assignment (pending/in_progress/completed).
+        is_active: True jika penilaian diperhitungkan dalam kalkulasi CVI; False jika
+            dinonaktifkan admin (data tetap tersimpan, tidak dihitung).
         deadline: Batas waktu penilaian, atau None.
         ratings: Daftar penilaian per item, terurut berdasarkan sequence_number.
     """
@@ -121,6 +123,7 @@ class ExpertRatingSummary(BaseModel):
     expert_name: str
     institution: str | None
     status: str
+    is_active: bool = True
     deadline: datetime | None
     ratings: list[ItemRatingByExpert]
 

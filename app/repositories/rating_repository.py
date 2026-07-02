@@ -66,14 +66,16 @@ class RatingRepository:
     async def get_by_instrument(self, instrument_id: str) -> list[Rating]:
         """Mengambil semua rating aktif untuk sebuah instrumen (dari semua expert).
 
-        Hanya mengembalikan rating dari assignment yang tidak diarsipkan, sehingga
-        kalkulasi CVI selalu didasarkan pada penilaian terbaru.
+        Hanya mengembalikan rating dari assignment aktif (is_active=True) dan
+        non-archived, sehingga kalkulasi CVI selalu didasarkan pada penilaian
+        terbaru yang masih diperhitungkan.
 
         Args:
             instrument_id: ID instrumen.
 
         Returns:
-            Daftar Rating dari assignment non-archived untuk instrumen tersebut.
+            Daftar Rating dari assignment aktif (is_active=True) dan non-archived
+            untuk instrumen tersebut.
         """
         from app.models.expert_assignment import ExpertAssignment
 
@@ -83,6 +85,7 @@ class RatingRepository:
             .where(
                 ExpertAssignment.instrument_id == instrument_id,
                 ExpertAssignment.status != "archived",
+                ExpertAssignment.is_active.is_(True),
             )
         )
         return list(result.scalars().all())

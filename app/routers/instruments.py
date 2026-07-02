@@ -773,6 +773,102 @@ async def revise_assignment(
     )
 
 
+@router.post(
+    "/{instrument_id}/assignments/{assignment_id}/deactivate",
+    response_model=AssignmentResponse,
+    summary="Nonaktifkan penilaian expert",
+    description=(
+        "Menonaktifkan penilaian seorang expert tanpa menghapus datanya. Setelah "
+        "dinonaktifkan, penilaian tersebut tidak lagi diperhitungkan dalam kalkulasi "
+        "CVI maupun ekspor Excel. Data tetap tersimpan dan dapat diaktifkan kembali. "
+        "Hanya admin."
+    ),
+    responses={
+        400: {"description": "Assignment archived atau sudah nonaktif."},
+        403: {"description": "Akses ditolak, diperlukan role admin."},
+        404: {"description": "Assignment tidak ditemukan."},
+    },
+)
+async def deactivate_assignment(
+    instrument_id: str,
+    assignment_id: str,
+    request: Request,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AssignmentResponse:
+    """Menonaktifkan penilaian expert dari kalkulasi CVI (admin only).
+
+    Args:
+        instrument_id: ID instrumen (untuk konteks dan logging).
+        assignment_id: ID assignment yang dinonaktifkan.
+        request: HTTP request.
+        admin: Admin yang memicu penonaktifan.
+        db: AsyncSession database.
+
+    Returns:
+        AssignmentResponse assignment yang sudah dinonaktifkan.
+    """
+    service = ExpertAssignmentService(db)
+    assignment = await service.set_active(assignment_id, is_active=False)
+    await log_activity(
+        db=db,
+        action="deactivate_assignment",
+        request=request,
+        user_id=admin.id,
+        resource_type="expert_assignment",
+        resource_id=assignment_id,
+        metadata={"instrument_id": instrument_id, "user_id": assignment.user_id},
+    )
+    return AssignmentResponse.model_validate(assignment)
+
+
+@router.post(
+    "/{instrument_id}/assignments/{assignment_id}/activate",
+    response_model=AssignmentResponse,
+    summary="Aktifkan kembali penilaian expert",
+    description=(
+        "Mengaktifkan kembali penilaian expert yang sebelumnya dinonaktifkan sehingga "
+        "kembali diperhitungkan dalam kalkulasi CVI. Hanya admin."
+    ),
+    responses={
+        400: {"description": "Assignment archived atau sudah aktif."},
+        403: {"description": "Akses ditolak, diperlukan role admin."},
+        404: {"description": "Assignment tidak ditemukan."},
+    },
+)
+async def activate_assignment(
+    instrument_id: str,
+    assignment_id: str,
+    request: Request,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> AssignmentResponse:
+    """Mengaktifkan kembali penilaian expert (admin only).
+
+    Args:
+        instrument_id: ID instrumen (untuk konteks dan logging).
+        assignment_id: ID assignment yang diaktifkan kembali.
+        request: HTTP request.
+        admin: Admin yang memicu pengaktifan.
+        db: AsyncSession database.
+
+    Returns:
+        AssignmentResponse assignment yang sudah diaktifkan kembali.
+    """
+    service = ExpertAssignmentService(db)
+    assignment = await service.set_active(assignment_id, is_active=True)
+    await log_activity(
+        db=db,
+        action="activate_assignment",
+        request=request,
+        user_id=admin.id,
+        resource_type="expert_assignment",
+        resource_id=assignment_id,
+        metadata={"instrument_id": instrument_id, "user_id": assignment.user_id},
+    )
+    return AssignmentResponse.model_validate(assignment)
+
+
 # ────────────────────────────────────────────────────────────
 #  Expert Ratings (admin view)
 # ────────────────────────────────────────────────────────────

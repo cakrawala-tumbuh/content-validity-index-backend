@@ -265,6 +265,7 @@ class RatingService:
                     expert_name=user.full_name if user else assignment.user_id,
                     institution=user.institution if user else None,
                     status=assignment.status,
+                    is_active=assignment.is_active,
                     deadline=assignment.deadline,
                     ratings=item_ratings,
                 )
