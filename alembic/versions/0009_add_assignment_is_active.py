@@ -31,7 +31,7 @@ def upgrade() -> None:
             "is_active",
             sa.Boolean(),
             nullable=False,
-            server_default=sa.text("1"),
+            server_default=sa.text("true"),
             comment=(
                 "True jika penilaian diperhitungkan dalam kalkulasi CVI; "
                 "False jika dinonaktifkan admin (data tetap disimpan, tidak dihitung)."

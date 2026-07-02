@@ -61,7 +61,7 @@ class ExpertAssignment(Base):
         Boolean,
         nullable=False,
         default=True,
-        server_default="1",
+        server_default="true",
         comment=(
             "True jika penilaian diperhitungkan dalam kalkulasi CVI; "
             "False jika dinonaktifkan admin (data tetap disimpan, tidak dihitung)."
