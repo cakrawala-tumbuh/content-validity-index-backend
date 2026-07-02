@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func, inspect
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func, inspect
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -21,6 +21,9 @@ class ExpertAssignment(Base):
         - in_progress: Expert sedang dalam proses penilaian.
         - completed: Expert telah menyelesaikan semua penilaian.
         - archived: Assignment diarsipkan; tidak digunakan dalam kalkulasi CVI.
+
+    Field is_active menandai apakah penilaian ini diperhitungkan dalam kalkulasi CVI.
+    Bila False, assignment tetap tersimpan namun dieksklusi dari perhitungan.
     """
 
     __tablename__ = "expert_assignments"
@@ -53,6 +56,16 @@ class ExpertAssignment(Base):
         nullable=False,
         default="pending",
         comment="Status: pending | in_progress | completed | archived",
+    )
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="1",
+        comment=(
+            "True jika penilaian diperhitungkan dalam kalkulasi CVI; "
+            "False jika dinonaktifkan admin (data tetap disimpan, tidak dihitung)."
+        ),
     )
     previous_assignment_id: Mapped[str | None] = mapped_column(
         String(36),

@@ -37,6 +37,8 @@ class AssignmentResponse(BaseModel):
         assigned_by: ID admin yang melakukan assign.
         deadline: Batas waktu penilaian.
         status: Status assignment (pending/in_progress/completed/archived).
+        is_active: True jika penilaian diperhitungkan dalam kalkulasi CVI; False jika
+            dinonaktifkan admin (data tetap tersimpan, tidak dihitung).
         previous_assignment_id: ID assignment sebelumnya yang diarsipkan (None jika bukan revisi).
         revision_number: Nomor revisi dimulai dari 1.
         assigned_at: Waktu penugasan.
@@ -54,6 +56,7 @@ class AssignmentResponse(BaseModel):
                 "assigned_by": "f6a7b8c9-d0e1-2345-fab6-789012345678",
                 "deadline": "2026-06-30T23:59:59",
                 "status": "in_progress",
+                "is_active": True,
                 "previous_assignment_id": None,
                 "revision_number": 1,
                 "assigned_at": "2026-05-01T09:00:00",
@@ -69,6 +72,7 @@ class AssignmentResponse(BaseModel):
     assigned_by: str
     deadline: datetime | None
     status: str
+    is_active: bool = True
     previous_assignment_id: str | None = None
     revision_number: int = 1
     assigned_at: datetime

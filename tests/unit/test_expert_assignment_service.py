@@ -140,6 +140,7 @@ class TestExpertAssignmentInstrumentName:
             user_id="expert-1",
             assigned_by="admin-1",
             status="pending",
+            is_active=True,
             revision_number=1,
             assigned_at=now,
             updated_at=now,
@@ -588,3 +589,185 @@ class TestExpertAssignmentServiceReopen:
                 await service.reopen("assign-1", "expert-1")
 
         assert exc_info.value.status_code == 400
+
+
+class TestExpertAssignmentServiceSetActive:
+    """Kumpulan test untuk method ExpertAssignmentService.set_active()."""
+
+    @pytest.mark.asyncio
+    async def test_set_active_nonaktifkan_assignment_berhasil(self) -> None:
+        """set_active(False) harus mengubah is_active dari True menjadi False."""
+        mock_db = AsyncMock()
+        mock_assignment = MagicMock()
+        mock_assignment.id = "assign-1"
+        mock_assignment.status = "completed"
+        mock_assignment.is_active = True
+
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_assignment
+        mock_repo.update.return_value = mock_assignment
+
+        with (
+            patch(
+                "app.services.expert_assignment_service.ExpertAssignmentRepository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.services.expert_assignment_service.UserRepository",
+                return_value=AsyncMock(),
+            ),
+        ):
+            from app.services.expert_assignment_service import ExpertAssignmentService
+
+            service = ExpertAssignmentService(mock_db)
+            result = await service.set_active("assign-1", is_active=False)
+
+        assert mock_assignment.is_active is False
+        mock_repo.update.assert_called_once_with(mock_assignment)
+        assert result is mock_assignment
+
+    @pytest.mark.asyncio
+    async def test_set_active_aktifkan_kembali_assignment_berhasil(self) -> None:
+        """set_active(True) harus mengubah is_active dari False menjadi True."""
+        mock_db = AsyncMock()
+        mock_assignment = MagicMock()
+        mock_assignment.id = "assign-1"
+        mock_assignment.status = "in_progress"
+        mock_assignment.is_active = False
+
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_assignment
+        mock_repo.update.return_value = mock_assignment
+
+        with (
+            patch(
+                "app.services.expert_assignment_service.ExpertAssignmentRepository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.services.expert_assignment_service.UserRepository",
+                return_value=AsyncMock(),
+            ),
+        ):
+            from app.services.expert_assignment_service import ExpertAssignmentService
+
+            service = ExpertAssignmentService(mock_db)
+            result = await service.set_active("assign-1", is_active=True)
+
+        assert mock_assignment.is_active is True
+        assert result is mock_assignment
+
+    @pytest.mark.asyncio
+    async def test_set_active_assignment_archived_raise_400(self) -> None:
+        """set_active harus raise HTTPException 400 jika assignment berstatus archived."""
+        mock_db = AsyncMock()
+        mock_assignment = MagicMock()
+        mock_assignment.id = "assign-1"
+        mock_assignment.status = "archived"
+        mock_assignment.is_active = True
+
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_assignment
+
+        with (
+            patch(
+                "app.services.expert_assignment_service.ExpertAssignmentRepository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.services.expert_assignment_service.UserRepository",
+                return_value=AsyncMock(),
+            ),
+        ):
+            from app.services.expert_assignment_service import ExpertAssignmentService
+
+            service = ExpertAssignmentService(mock_db)
+            with pytest.raises(HTTPException) as exc_info:
+                await service.set_active("assign-1", is_active=False)
+
+        assert exc_info.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_set_active_sudah_nonaktif_raise_400(self) -> None:
+        """set_active(False) harus raise HTTPException 400 jika sudah nonaktif."""
+        mock_db = AsyncMock()
+        mock_assignment = MagicMock()
+        mock_assignment.id = "assign-1"
+        mock_assignment.status = "completed"
+        mock_assignment.is_active = False
+
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_assignment
+
+        with (
+            patch(
+                "app.services.expert_assignment_service.ExpertAssignmentRepository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.services.expert_assignment_service.UserRepository",
+                return_value=AsyncMock(),
+            ),
+        ):
+            from app.services.expert_assignment_service import ExpertAssignmentService
+
+            service = ExpertAssignmentService(mock_db)
+            with pytest.raises(HTTPException) as exc_info:
+                await service.set_active("assign-1", is_active=False)
+
+        assert exc_info.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_set_active_sudah_aktif_raise_400(self) -> None:
+        """set_active(True) harus raise HTTPException 400 jika sudah aktif."""
+        mock_db = AsyncMock()
+        mock_assignment = MagicMock()
+        mock_assignment.id = "assign-1"
+        mock_assignment.status = "completed"
+        mock_assignment.is_active = True
+
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = mock_assignment
+
+        with (
+            patch(
+                "app.services.expert_assignment_service.ExpertAssignmentRepository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.services.expert_assignment_service.UserRepository",
+                return_value=AsyncMock(),
+            ),
+        ):
+            from app.services.expert_assignment_service import ExpertAssignmentService
+
+            service = ExpertAssignmentService(mock_db)
+            with pytest.raises(HTTPException) as exc_info:
+                await service.set_active("assign-1", is_active=True)
+
+        assert exc_info.value.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_set_active_tidak_ditemukan_raise_404(self) -> None:
+        """set_active harus raise HTTPException 404 jika assignment tidak ditemukan."""
+        mock_db = AsyncMock()
+        mock_repo = AsyncMock()
+        mock_repo.get_by_id.return_value = None
+
+        with (
+            patch(
+                "app.services.expert_assignment_service.ExpertAssignmentRepository",
+                return_value=mock_repo,
+            ),
+            patch(
+                "app.services.expert_assignment_service.UserRepository",
+                return_value=AsyncMock(),
+            ),
+        ):
+            from app.services.expert_assignment_service import ExpertAssignmentService
+
+            service = ExpertAssignmentService(mock_db)
+            with pytest.raises(HTTPException) as exc_info:
+                await service.set_active("nonexistent", is_active=False)
+
+        assert exc_info.value.status_code == 404
