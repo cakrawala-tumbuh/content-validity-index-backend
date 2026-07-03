@@ -85,11 +85,13 @@ def generate_cvi_pdf(result: CVIResult, expert_names: dict[str, str] | None = No
             styles["Title"],
         )
     )
+    n_valid = sum(1 for item in result.items if item.is_valid)
     elements.append(Spacer(1, 6))
     elements.append(
         Paragraph(
             f"Jumlah Expert: {result.n_experts} &nbsp;&nbsp;|&nbsp;&nbsp; "
-            f"Jumlah Item: {result.n_items}",
+            f"Jumlah Item: {result.n_items} &nbsp;&nbsp;|&nbsp;&nbsp; "
+            f"Item Valid: {n_valid} dari {result.n_items}",
             normal,
         )
     )
@@ -104,7 +106,7 @@ def generate_cvi_pdf(result: CVIResult, expert_names: dict[str, str] | None = No
         table_data.append(
             [
                 Paragraph(str(item.sequence_number), cell_style),
-                Paragraph(_safe_text(item.domain_id) if item.domain_id else "-", cell_style),
+                Paragraph(_safe_text(item.domain_name) if item.domain_name else "-", cell_style),
                 Paragraph(_safe_text(item.content), cell_style),
                 Paragraph(str(item.n_relevant), cell_style),
                 Paragraph(f"{item.i_cvi:.2f}", cell_style),

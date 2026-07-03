@@ -270,12 +270,19 @@ class TestCVIServiceCalculate:
         mock_rating_repo = AsyncMock()
         mock_rating_repo.get_by_instrument.return_value = [rating1, rating2, rating3, rating4]
 
+        mock_domain_repo = AsyncMock()
+        mock_domain_repo.get_by_instrument.return_value = []
+
         with (
             patch(
                 "app.services.cvi_service.InstrumentRepository",
                 return_value=mock_instrument_repo,
             ),
             patch("app.services.cvi_service.ItemRepository", return_value=mock_item_repo),
+            patch(
+                "app.services.cvi_service.DomainRepository",
+                return_value=mock_domain_repo,
+            ),
             patch(
                 "app.services.cvi_service.ExpertAssignmentRepository",
                 return_value=AsyncMock(),

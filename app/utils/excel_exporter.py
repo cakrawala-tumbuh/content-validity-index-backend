@@ -56,12 +56,15 @@ def generate_cvi_excel(result: CVIResult, expert_names: dict[str, str] | None = 
     title_cell.alignment = center
 
     # --- Baris 2: Info umum ---
+    n_valid = sum(1 for item in result.items if item.is_valid)
     ws["A2"] = "Jumlah Expert:"
     ws["B2"] = result.n_experts
     ws["C2"] = "Jumlah Item:"
     ws["D2"] = result.n_items
+    ws["E2"] = f"Item Valid: {n_valid} dari {result.n_items}"
     ws["A2"].font = bold_font
     ws["C2"].font = bold_font
+    ws["E2"].font = bold_font
 
     # --- Baris 3: Header ---
     headers = ["No", "Domain", "Item", "Jml. Relevan", "I-CVI", "Keterangan"]
@@ -74,7 +77,7 @@ def generate_cvi_excel(result: CVIResult, expert_names: dict[str, str] | None = 
     # --- Baris 4+: Data item ---
     for row_idx, item in enumerate(result.items, start=4):
         ws.cell(row=row_idx, column=1, value=item.sequence_number).alignment = center
-        ws.cell(row=row_idx, column=2, value=item.domain_id or "-")
+        ws.cell(row=row_idx, column=2, value=item.domain_name or "-")
         ws.cell(row=row_idx, column=3, value=item.content)
         ws.cell(row=row_idx, column=4, value=item.n_relevant).alignment = center
         i_cvi_cell = ws.cell(row=row_idx, column=5, value=item.i_cvi)

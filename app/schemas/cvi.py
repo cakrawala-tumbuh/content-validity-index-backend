@@ -13,6 +13,7 @@ class ItemCVIResult(BaseModel):
         sequence_number: Nomor urut item.
         content: Teks item.
         domain_id: ID domain item.
+        domain_name: Nama domain item (untuk ditampilkan), None jika tanpa domain.
         n_experts: Jumlah expert yang menilai item ini.
         n_relevant: Jumlah expert yang memberi skor 3 atau 4.
         i_cvi: Nilai I-CVI (0.0 – 1.0).
@@ -26,6 +27,7 @@ class ItemCVIResult(BaseModel):
                 "sequence_number": 1,
                 "content": "Remaja mampu mengidentifikasi kebutuhan informasi.",
                 "domain_id": "d4e5f6a7-b8c9-0123-defa-234567890123",
+                "domain_name": "Akses Informasi",
                 "n_experts": 5,
                 "n_relevant": 4,
                 "i_cvi": 0.8,
@@ -38,6 +40,7 @@ class ItemCVIResult(BaseModel):
     sequence_number: int
     content: str
     domain_id: str | None
+    domain_name: str | None = None
     n_experts: int
     n_relevant: int
     i_cvi: float = Field(ge=0.0, le=1.0)

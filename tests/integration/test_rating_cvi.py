@@ -158,6 +158,74 @@ class TestRatingService:
 class TestCVIService:
     """Kumpulan test untuk CVIService dengan DB."""
 
+    async def test_calculate_cvi_menyertakan_nama_domain(self, db: AsyncSession) -> None:
+        """Hasil CVI harus menyertakan nama domain (bukan hanya ID) untuk tiap item."""
+        from app.models.domain import Domain
+        from app.repositories.domain_repository import DomainRepository
+        from app.schemas.item import ItemCreate
+        from app.services.rating_service import RatingService
+
+        repo = UserRepository(db)
+        admin = await repo.create(
+            User(
+                id="adm-dom",
+                email="admdom@test.com",
+                full_name="Admin",
+                role="admin",
+                is_active=True,
+            )
+        )
+        expert = await repo.create(
+            User(
+                id="exp-dom",
+                email="expdom@test.com",
+                full_name="Expert",
+                role="expert",
+                is_active=True,
+            )
+        )
+
+        inst_service = InstrumentService(db)
+        instrument = await inst_service.create(
+            InstrumentCreate(name="Instrumen Domain"), created_by=admin.id
+        )
+
+        domain_repo = DomainRepository(db)
+        domain = await domain_repo.create(
+            Domain(instrument_id=instrument.id, name="Dimensi Literasi")
+        )
+
+        item_service = ItemService(db)
+        item = await item_service.create(
+            instrument.id,
+            ItemCreate(sequence_number=1, content="Item berdomain", domain_id=domain.id),
+        )
+        await item_service.create(
+            instrument.id, ItemCreate(sequence_number=2, content="Item tanpa domain")
+        )
+
+        assign_service = ExpertAssignmentService(db)
+        assignment = await assign_service.create(
+            instrument.id, AssignmentCreate(user_id=expert.id), assigned_by=admin.id
+        )
+        items = await item_service.get_by_instrument(instrument.id)
+        rating_service = RatingService(db)
+        await rating_service.bulk_submit(
+            assignment.id,
+            expert.id,
+            RatingBulkCreate(
+                ratings=[RatingItem(item_id=it.id, relevance_score=4) for it in items]
+            ),
+        )
+
+        result = await CVIService(db).calculate(instrument.id)
+        by_seq = {r.sequence_number: r for r in result.items}
+        assert by_seq[1].domain_id == domain.id
+        assert by_seq[1].domain_name == "Dimensi Literasi"
+        assert by_seq[2].domain_id is None
+        assert by_seq[2].domain_name is None
+        assert item.domain_id == domain.id
+
     async def test_calculate_cvi_lengkap(self, db: AsyncSession) -> None:
         """Harus bisa menghitung CVI setelah semua expert memberikan penilaian."""
         admin, expert1, instrument_id = await _setup_instrument_with_items(db, "cvi1")

@@ -3,6 +3,7 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.repositories.domain_repository import DomainRepository
 from app.repositories.expert_assignment_repository import ExpertAssignmentRepository
 from app.repositories.instrument_repository import InstrumentRepository
 from app.repositories.item_repository import ItemRepository
@@ -118,6 +119,7 @@ class CVIService:
         self.db = db
         self.instrument_repo = InstrumentRepository(db)
         self.item_repo = ItemRepository(db)
+        self.domain_repo = DomainRepository(db)
         self.assignment_repo = ExpertAssignmentRepository(db)
         self.rating_repo = RatingRepository(db)
 
@@ -157,6 +159,10 @@ class CVIService:
                 detail="Belum ada penilaian yang diberikan untuk instrumen ini.",
             )
 
+        # Peta domain_id -> nama domain agar hasil CVI menampilkan nama, bukan ID.
+        domains = await self.domain_repo.get_by_instrument(instrument_id)
+        domain_names: dict[str, str] = {domain.id: domain.name for domain in domains}
+
         # Kelompokkan rating berdasarkan item_id
         ratings_by_item: dict[str, list[int]] = {item.id: [] for item in items}
         expert_ids: set[str] = set()
@@ -184,6 +190,7 @@ class CVIService:
                     sequence_number=item.sequence_number,
                     content=item.content,
                     domain_id=item.domain_id,
+                    domain_name=domain_names.get(item.domain_id) if item.domain_id else None,
                     n_experts=n_rated,
                     n_relevant=n_relevant,
                     i_cvi=round(i_cvi_val, 4),

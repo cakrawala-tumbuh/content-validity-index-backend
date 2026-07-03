@@ -101,3 +101,50 @@ class TestExcelExporter:
         )
         excel_bytes = generate_cvi_excel(result)
         assert len(excel_bytes) > 0
+
+    def test_generate_excel_menampilkan_nama_domain_dan_item_valid(self) -> None:
+        """Excel harus menampilkan NAMA domain (bukan ID) dan ringkasan item valid."""
+        from io import BytesIO
+
+        from openpyxl import load_workbook
+
+        result = CVIResult(
+            instrument_id="instr-3",
+            instrument_name="Instrumen Domain",
+            n_experts=3,
+            n_items=2,
+            items=[
+                ItemCVIResult(
+                    item_id="item-1",
+                    sequence_number=1,
+                    content="Item berdomain",
+                    domain_id="dom-uuid-1",
+                    domain_name="Dimensi Literasi",
+                    n_experts=3,
+                    n_relevant=3,
+                    i_cvi=1.0,
+                    is_valid=True,
+                ),
+                ItemCVIResult(
+                    item_id="item-2",
+                    sequence_number=2,
+                    content="Item tanpa domain",
+                    domain_id=None,
+                    domain_name=None,
+                    n_experts=3,
+                    n_relevant=1,
+                    i_cvi=0.3333,
+                    is_valid=False,
+                ),
+            ],
+            s_cvi_ave=0.6667,
+            s_cvi_ua=0.5,
+        )
+        ws = load_workbook(BytesIO(generate_cvi_excel(result))).active
+        # Ringkasan item valid muncul di baris info.
+        assert ws["E2"].value == "Item Valid: 1 dari 2"
+        # Kolom domain menampilkan NAMA domain, bukan ID mentah.
+        assert ws["B4"].value == "Dimensi Literasi"
+        assert ws["B4"].value != "dom-uuid-1"
+        # Item tanpa domain ditandai "-".
+        assert ws["B5"].value == "-"
