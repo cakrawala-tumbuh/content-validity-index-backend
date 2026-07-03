@@ -71,6 +71,35 @@ class TestPdfExporter:
         assert len(pdf_bytes) > 0
         assert pdf_bytes[:4] == b"%PDF"
 
+    def test_generate_pdf_content_dengan_karakter_markup(self) -> None:
+        """generate_cvi_pdf tidak boleh gagal saat content/domain_id/nama instrumen
+        mengandung karakter '&', '<', '>' yang ditafsirkan Paragraph ReportLab
+        sebagai mini-markup XML/HTML jika tidak di-escape.
+        """
+        result = CVIResult(
+            instrument_id="instr-3",
+            instrument_name="Kepuasan & Kinerja <Tim> A>B",
+            n_experts=2,
+            n_items=1,
+            items=[
+                ItemCVIResult(
+                    item_id="item-1",
+                    sequence_number=1,
+                    content="Beban kerja & tekanan waktu (skor < 5 dianggap rendah, > 5 tinggi)",
+                    domain_id="Domain A & B",
+                    n_experts=2,
+                    n_relevant=2,
+                    i_cvi=1.0,
+                    is_valid=True,
+                ),
+            ],
+            s_cvi_ave=1.0,
+            s_cvi_ua=1.0,
+        )
+        pdf_bytes = generate_cvi_pdf(result)
+        assert isinstance(pdf_bytes, bytes)
+        assert pdf_bytes[:4] == b"%PDF"
+
 
 class TestExportCVIPdfEndpoint:
     """Kumpulan test untuk endpoint GET /instruments/{id}/cvi/export/pdf."""

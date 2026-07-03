@@ -6,6 +6,7 @@ expert. Satu berkas PDF dihasilkan untuk satu hasil kalkulasi CVI sebuah instrum
 """
 
 from io import BytesIO
+from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -21,6 +22,23 @@ from reportlab.platypus import (
 )
 
 from app.schemas.cvi import CVIResult
+
+
+def _safe_text(text: str) -> str:
+    """Meloloskan teks bebas agar aman dirender oleh Paragraph ReportLab.
+
+    Paragraph ReportLab menafsirkan isi teksnya sebagai mini-markup mirip XML/HTML.
+    Teks bebas dari pengguna (nama instrumen, konten item, domain) yang mengandung
+    '&', '<', atau '>' akan membuat parser markup tersebut gagal dan melempar
+    exception saat build PDF. Fungsi ini meng-escape karakter tersebut lebih dulu.
+
+    Args:
+        text: Teks mentah yang akan dirender di dalam sebuah Paragraph.
+
+    Returns:
+        Teks yang sudah di-escape, aman dipakai sebagai isi Paragraph.
+    """
+    return escape(text)
 
 
 def generate_cvi_pdf(result: CVIResult, expert_names: dict[str, str] | None = None) -> bytes:
@@ -63,7 +81,7 @@ def generate_cvi_pdf(result: CVIResult, expert_names: dict[str, str] | None = No
     elements: list[Flowable] = []
     elements.append(
         Paragraph(
-            f"Hasil Content Validity Index — {result.instrument_name}",
+            f"Hasil Content Validity Index — {_safe_text(result.instrument_name)}",
             styles["Title"],
         )
     )
@@ -86,8 +104,8 @@ def generate_cvi_pdf(result: CVIResult, expert_names: dict[str, str] | None = No
         table_data.append(
             [
                 Paragraph(str(item.sequence_number), cell_style),
-                Paragraph(item.domain_id or "-", cell_style),
-                Paragraph(item.content, cell_style),
+                Paragraph(_safe_text(item.domain_id) if item.domain_id else "-", cell_style),
+                Paragraph(_safe_text(item.content), cell_style),
                 Paragraph(str(item.n_relevant), cell_style),
                 Paragraph(f"{item.i_cvi:.2f}", cell_style),
                 Paragraph("Valid" if item.is_valid else "Tidak Valid", cell_style),
