@@ -20,6 +20,7 @@ from app.services.item_service import ItemService
 from app.services.rating_service import RatingService
 from app.utils.activity_logger import log_activity
 from app.utils.excel_exporter import generate_cvi_excel
+from app.utils.http_headers import content_disposition_attachment
 from app.utils.pdf_exporter import generate_cvi_pdf
 
 router = APIRouter(prefix="/instruments", tags=["Instruments"])
@@ -989,7 +990,7 @@ async def export_cvi_excel(
     return Response(
         content=excel_bytes,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": content_disposition_attachment(filename)},
     )
 
 
@@ -1039,5 +1040,5 @@ async def export_cvi_pdf(
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": content_disposition_attachment(filename)},
     )

@@ -7,10 +7,13 @@ from app.dependencies.auth import require_admin
 from app.main import app
 from app.schemas.cvi import CVIResult, ItemCVIResult
 from app.schemas.expert_assignment import AssignmentCreate
+from app.schemas.instrument import InstrumentUpdate
 from app.schemas.rating import RatingBulkCreate, RatingItem
 from app.services.expert_assignment_service import ExpertAssignmentService
+from app.services.instrument_service import InstrumentService
 from app.services.item_service import ItemService
 from app.services.rating_service import RatingService
+from app.utils.http_headers import content_disposition_attachment
 from app.utils.pdf_exporter import generate_cvi_pdf
 
 from .test_rating_cvi import _setup_instrument_with_items
@@ -101,6 +104,27 @@ class TestPdfExporter:
         assert pdf_bytes[:4] == b"%PDF"
 
 
+class TestContentDispositionAttachment:
+    """Kumpulan test untuk helper content_disposition_attachment."""
+
+    def test_nama_ascii_menghasilkan_filename_biasa(self) -> None:
+        """Nama ASCII menghasilkan filename biasa dan aman di-encode Latin-1."""
+        value = content_disposition_attachment("CVI_Instrumen.pdf")
+        value.encode("latin-1")  # tidak boleh melempar
+        assert 'filename="CVI_Instrumen.pdf"' in value
+
+    def test_nama_non_latin1_tetap_aman(self) -> None:
+        """Nama dengan em-dash (U+2014) harus tetap menghasilkan header aman Latin-1."""
+        value = content_disposition_attachment("CVI_DCS_—_Screening.pdf")
+        # WAJIB tidak melempar UnicodeEncodeError (inti bug 500 di produksi).
+        value.encode("latin-1")
+        # Karakter mentah non-Latin-1 tidak boleh muncul di fallback ASCII.
+        assert "—" not in value
+        # Nama asli tetap tersedia lewat filename* (RFC 5987, persent-encode UTF-8).
+        assert "filename*=UTF-8''" in value
+        assert "%E2%80%94" in value  # em-dash ter-encode UTF-8
+
+
 class TestExportCVIPdfEndpoint:
     """Kumpulan test untuk endpoint GET /instruments/{id}/cvi/export/pdf."""
 
@@ -165,3 +189,42 @@ class TestExportCVIPdfEndpoint:
             app.dependency_overrides.pop(require_admin, None)
 
         assert resp.status_code == 404
+
+    async def test_export_pdf_nama_instrumen_non_latin1(
+        self, client: AsyncClient, db: AsyncSession
+    ) -> None:
+        """Regresi bug produksi: nama instrumen dengan em-dash (U+2014) tidak boleh
+        menyebabkan 500 karena header Content-Disposition gagal di-encode Latin-1.
+        """
+        admin, expert, instrument_id = await _setup_instrument_with_items(db, "pdfemd")
+
+        # Ubah nama instrumen agar mengandung em-dash — persis kasus produksi.
+        inst_service = InstrumentService(db)
+        await inst_service.update(instrument_id, InstrumentUpdate(name="DCS — Screening"))
+
+        assign_service = ExpertAssignmentService(db)
+        assignment = await assign_service.create(
+            instrument_id, AssignmentCreate(user_id=expert.id), assigned_by=admin.id
+        )
+        item_service = ItemService(db)
+        items = await item_service.get_by_instrument(instrument_id)
+        rating_service = RatingService(db)
+        await rating_service.bulk_submit(
+            assignment.id,
+            expert.id,
+            RatingBulkCreate(
+                ratings=[RatingItem(item_id=item.id, relevance_score=4) for item in items]
+            ),
+        )
+
+        app.dependency_overrides[require_admin] = lambda: admin
+        try:
+            resp = await client.get(f"/api/v1/instruments/{instrument_id}/cvi/export/pdf")
+        finally:
+            app.dependency_overrides.pop(require_admin, None)
+
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "application/pdf"
+        assert resp.content[:4] == b"%PDF"
+        # Header harus memuat bentuk filename* (RFC 5987) untuk nama non-ASCII.
+        assert "filename*=UTF-8''" in resp.headers["content-disposition"]
