@@ -449,7 +449,8 @@ class TestRatingServiceGetExpertRatings:
             ratings_per_assignment: Dict {assignment_id: [mock_rating]}.
 
         Returns:
-            Tuple (instrument_repo, item_repo, assignment_repo, user_repo, rating_repo).
+            Tuple (instrument_repo, item_repo, assignment_repo, user_repo, rating_repo,
+            domain_repo).
         """
         mock_instrument_repo = AsyncMock()
         mock_instrument_repo.get_by_id.return_value = instrument
@@ -469,12 +470,16 @@ class TestRatingServiceGetExpertRatings:
         mock_rating_repo = AsyncMock()
         mock_rating_repo.get_by_assignment.side_effect = _get_ratings
 
+        mock_domain_repo = AsyncMock()
+        mock_domain_repo.get_by_instrument.return_value = []
+
         return (
             mock_instrument_repo,
             mock_item_repo,
             mock_assignment_repo,
             mock_user_repo,
             mock_rating_repo,
+            mock_domain_repo,
         )
 
     @pytest.mark.asyncio
@@ -489,6 +494,7 @@ class TestRatingServiceGetExpertRatings:
             patch("app.services.rating_service.ExpertAssignmentRepository", return_value=repos[2]),
             patch("app.services.rating_service.UserRepository", return_value=repos[3]),
             patch("app.services.rating_service.RatingRepository", return_value=repos[4]),
+            patch("app.services.rating_service.DomainRepository", return_value=repos[5]),
         ):
             from app.services.rating_service import RatingService
 
@@ -512,6 +518,7 @@ class TestRatingServiceGetExpertRatings:
             patch("app.services.rating_service.ExpertAssignmentRepository", return_value=repos[2]),
             patch("app.services.rating_service.UserRepository", return_value=repos[3]),
             patch("app.services.rating_service.RatingRepository", return_value=repos[4]),
+            patch("app.services.rating_service.DomainRepository", return_value=repos[5]),
         ):
             from app.services.rating_service import RatingService
 
@@ -557,6 +564,7 @@ class TestRatingServiceGetExpertRatings:
             patch("app.services.rating_service.ExpertAssignmentRepository", return_value=repos[2]),
             patch("app.services.rating_service.UserRepository", return_value=repos[3]),
             patch("app.services.rating_service.RatingRepository", return_value=repos[4]),
+            patch("app.services.rating_service.DomainRepository", return_value=repos[5]),
         ):
             from app.services.rating_service import RatingService
 
@@ -614,6 +622,7 @@ class TestRatingServiceGetExpertRatings:
             patch("app.services.rating_service.ExpertAssignmentRepository", return_value=repos[2]),
             patch("app.services.rating_service.UserRepository", return_value=repos[3]),
             patch("app.services.rating_service.RatingRepository", return_value=repos[4]),
+            patch("app.services.rating_service.DomainRepository", return_value=repos[5]),
         ):
             from app.services.rating_service import RatingService
 
@@ -668,6 +677,7 @@ class TestRatingServiceGetExpertRatings:
             patch("app.services.rating_service.ExpertAssignmentRepository", return_value=repos[2]),
             patch("app.services.rating_service.UserRepository", return_value=repos[3]),
             patch("app.services.rating_service.RatingRepository", return_value=repos[4]),
+            patch("app.services.rating_service.DomainRepository", return_value=repos[5]),
         ):
             from app.services.rating_service import RatingService
 

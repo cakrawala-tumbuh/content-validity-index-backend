@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.rating import Rating
+from app.repositories.domain_repository import DomainRepository
 from app.repositories.expert_assignment_repository import ExpertAssignmentRepository
 from app.repositories.instrument_repository import InstrumentRepository
 from app.repositories.item_repository import ItemRepository
@@ -39,6 +40,7 @@ class RatingService:
         self.item_repo = ItemRepository(db)
         self.instrument_repo = InstrumentRepository(db)
         self.user_repo = UserRepository(db)
+        self.domain_repo = DomainRepository(db)
 
     async def _validate_assignment_ownership(self, assignment_id: str, user_id: str) -> None:
         """Memvalidasi bahwa assignment dimiliki oleh user yang sedang login.
@@ -233,6 +235,9 @@ class RatingService:
             instrument_id, include_archived=False
         )
 
+        domains = await self.domain_repo.get_by_instrument(instrument_id)
+        domain_names: dict[str, str] = {domain.id: domain.name for domain in domains}
+
         user_ids = [a.user_id for a in assignments]
         users = await self.user_repo.get_by_ids(user_ids)
         user_map = {u.id: u for u in users}
@@ -251,6 +256,7 @@ class RatingService:
                         sequence_number=item.sequence_number,
                         content=item.content,
                         domain_id=item.domain_id,
+                        domain_name=domain_names.get(item.domain_id) if item.domain_id else None,
                         relevance_score=rating.relevance_score if rating else None,
                         notes=rating.notes if rating else None,
                         is_relevant=(rating.relevance_score >= 3) if rating else None,
@@ -279,4 +285,36 @@ class RatingService:
             n_items=len(items),
             n_experts=len(assignments),
             experts=expert_summaries,
+        )
+
+    async def get_expert_rating_summary(
+        self, instrument_id: str, assignment_id: str
+    ) -> tuple[ExpertRatingSummary, str]:
+        """Mengambil ringkasan penilaian satu expert untuk sebuah instrumen.
+
+        Menggunakan get_expert_ratings_for_instrument lalu memilih summary milik
+        assignment_id yang diminta. Instrumen pada praktiknya hanya memiliki sedikit
+        expert, sehingga menghitung ulang seluruh expert lalu memfilter satu di antaranya
+        lebih sederhana dan tidak menduplikasi logic mapping item-rating dibanding menulis
+        query database terpisah per-assignment.
+
+        Args:
+            instrument_id: ID instrumen.
+            assignment_id: ID assignment milik expert yang diekspor.
+
+        Returns:
+            Tuple berisi (ExpertRatingSummary milik assignment tsb, nama instrumen).
+
+        Raises:
+            HTTPException: Jika instrumen tidak ditemukan (404, dilempar oleh
+                           get_expert_ratings_for_instrument), atau assignment tidak
+                           ditemukan di antara expert instrumen ini (404).
+        """
+        full = await self.get_expert_ratings_for_instrument(instrument_id)
+        for expert_summary in full.experts:
+            if expert_summary.assignment_id == assignment_id:
+                return expert_summary, full.instrument_name
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Assignment '{assignment_id}' tidak ditemukan pada instrumen ini.",
         )

@@ -19,9 +19,9 @@ from app.services.instrument_service import InstrumentService
 from app.services.item_service import ItemService
 from app.services.rating_service import RatingService
 from app.utils.activity_logger import log_activity
-from app.utils.excel_exporter import generate_cvi_excel
+from app.utils.excel_exporter import generate_cvi_excel, generate_expert_rating_excel
 from app.utils.http_headers import content_disposition_attachment
-from app.utils.pdf_exporter import generate_cvi_pdf
+from app.utils.pdf_exporter import generate_cvi_pdf, generate_expert_rating_pdf
 
 router = APIRouter(prefix="/instruments", tags=["Instruments"])
 
@@ -869,6 +869,110 @@ async def activate_assignment(
         metadata={"instrument_id": instrument_id, "user_id": assignment.user_id},
     )
     return AssignmentResponse.model_validate(assignment)
+
+
+@router.get(
+    "/{instrument_id}/assignments/{assignment_id}/export",
+    summary="Ekspor penilaian satu expert ke Excel",
+    description=(
+        "Mengunduh penilaian (skor relevansi + catatan) seorang expert untuk sebuah "
+        "instrumen dalam format file Excel (.xlsx). Hanya admin."
+    ),
+    responses={
+        200: {"content": {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}}},
+        403: {"description": "Akses ditolak."},
+        404: {"description": "Instrumen atau assignment tidak ditemukan."},
+    },
+)
+async def export_expert_rating_excel(
+    instrument_id: str,
+    assignment_id: str,
+    request: Request,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Mengekspor penilaian satu expert ke file Excel (admin only).
+
+    Args:
+        instrument_id: ID instrumen.
+        assignment_id: ID assignment expert yang diekspor.
+        request: HTTP request.
+        admin: Admin yang mengekspor.
+        db: AsyncSession database.
+
+    Returns:
+        File Excel (.xlsx) berisi penilaian expert tersebut.
+    """
+    service = RatingService(db)
+    summary, instrument_name = await service.get_expert_rating_summary(instrument_id, assignment_id)
+    excel_bytes = generate_expert_rating_excel(summary, instrument_name)
+    await log_activity(
+        db=db,
+        action="export_expert_rating_excel",
+        request=request,
+        user_id=admin.id,
+        resource_type="expert_assignment",
+        resource_id=assignment_id,
+        metadata={"instrument_id": instrument_id, "user_id": summary.user_id},
+    )
+    filename = f"Rating_{summary.expert_name}_{instrument_name}.xlsx".replace(" ", "_")
+    return Response(
+        content=excel_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": content_disposition_attachment(filename)},
+    )
+
+
+@router.get(
+    "/{instrument_id}/assignments/{assignment_id}/export/pdf",
+    summary="Ekspor penilaian satu expert ke PDF",
+    description=(
+        "Mengunduh penilaian (skor relevansi + catatan) seorang expert untuk sebuah "
+        "instrumen dalam format PDF. Hanya admin."
+    ),
+    responses={
+        200: {"content": {"application/pdf": {}}},
+        403: {"description": "Akses ditolak."},
+        404: {"description": "Instrumen atau assignment tidak ditemukan."},
+    },
+)
+async def export_expert_rating_pdf(
+    instrument_id: str,
+    assignment_id: str,
+    request: Request,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Mengekspor penilaian satu expert ke berkas PDF (admin only).
+
+    Args:
+        instrument_id: ID instrumen.
+        assignment_id: ID assignment expert yang diekspor.
+        request: HTTP request.
+        admin: Admin yang mengekspor.
+        db: AsyncSession database.
+
+    Returns:
+        Response berisi berkas PDF sebagai lampiran unduhan.
+    """
+    service = RatingService(db)
+    summary, instrument_name = await service.get_expert_rating_summary(instrument_id, assignment_id)
+    pdf_bytes = generate_expert_rating_pdf(summary, instrument_name)
+    await log_activity(
+        db=db,
+        action="export_expert_rating_pdf",
+        request=request,
+        user_id=admin.id,
+        resource_type="expert_assignment",
+        resource_id=assignment_id,
+        metadata={"instrument_id": instrument_id, "user_id": summary.user_id},
+    )
+    filename = f"Rating_{summary.expert_name}_{instrument_name}.pdf".replace(" ", "_")
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": content_disposition_attachment(filename)},
+    )
 
 
 # ────────────────────────────────────────────────────────────

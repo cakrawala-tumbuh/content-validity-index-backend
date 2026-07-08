@@ -92,6 +92,7 @@ class ItemRatingByExpert(BaseModel):
         sequence_number: Nomor urut item dalam instrumen.
         content: Teks konten item.
         domain_id: ID domain/dimensi item, atau None jika tanpa domain.
+        domain_name: Nama domain/dimensi item (untuk ditampilkan), None jika tanpa domain.
         relevance_score: Skor relevansi 1–4, atau None jika belum dinilai.
         notes: Catatan expert, atau None.
         is_relevant: True jika skor ≥ 3 (relevan), None jika belum dinilai.
@@ -101,6 +102,7 @@ class ItemRatingByExpert(BaseModel):
     sequence_number: int
     content: str
     domain_id: str | None
+    domain_name: str | None = None
     relevance_score: int | None
     notes: str | None
     is_relevant: bool | None
