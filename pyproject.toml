@@ -1,6 +1,6 @@
 [project]
 name = "content-validity-index-backend"
-version = "0.1.0"
+version = "0.15.0"
 description = "Backend REST API untuk pengelolaan Content Validity Index (CVI)"
 readme = "README.md"
 requires-python = ">=3.11"
